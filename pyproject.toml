@@ -1,0 +1,7 @@
+[project]
+name = "student-dropout-prediction"
+version = "0.1.0"
+description = "Predicting student academic outcomes using classification methods"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
