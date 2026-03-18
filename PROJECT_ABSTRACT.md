@@ -18,11 +18,17 @@ This project is not about finding the single best model. It is a **deep comparat
 
 ### 1.3 Key Highlights & Differentiators
 
-- All four core models are **implemented from scratch** using only NumPy for linear algebra (no sklearn for model training).
 - A **Streamlit interactive dashboard** lets users manipulate hyperparameters via sliders and see results update visually in real time.
 - A **"Pin & Compare" system** allows side-by-side comparison of any configurations.
 - Advanced analyses (bias-variance decomposition, calibration, statistical significance testing, feature interactions, misclassification analysis)
 - Every experiment is logged automatically, producing the ablation tables for the final report directly from the dashboard.
+
+### 1.4 Division of Work
+
+- **Vandit Vasa:** Lead the implementation of **Multinomial Logistic Regression** and **K-Nearest Neighbors**, including optimization, regularization, distance metrics, and probability outputs. Also take primary ownership of the preprocessing components most tied to those models, especially feature scaling, PCA, and the standardized-vs.-raw / PCA ablation studies.
+- **Brandon Tran:** Lead the implementation of the tree-based models, specifically **Random Forest** and **Gradient Boosted Trees**, including split criteria, bootstrapping, feature subsampling, boosting rounds, and feature importance analysis. Also own the class imbalance experiments tied to model performance, including class weighting comparisons, stratified sampling behavior, SMOTE, and undersampling.
+- **Shivnarain Sarin:** Lead the **Streamlit dashboard**, experiment logging pipeline, and the **Stacking Ensemble** integration. This includes building the interactive UI, implementing the pin-and-compare functionality, organizing output tables/plots, and connecting the best versions of all base models into the meta-model workflow.
+- **Shared responsibilities:** All three members will collaborate on dataset understanding, evaluation metrics, cross-validation, statistical significance testing, final error analysis, and writing the final report/presentation. Final model comparison, interpretation of results, and polishing the narrative of the project will be done jointly so that every member can speak to both the implementation and the experimental findings.
 
 ## 2. Dataset
 
