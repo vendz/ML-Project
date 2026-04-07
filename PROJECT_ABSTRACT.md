@@ -25,9 +25,9 @@ This project is not about finding the single best model. It is a **deep comparat
 
 ### 1.4 Division of Work
 
-- **Vandit Vasa:** Lead the implementation of **Multinomial Logistic Regression** and **K-Nearest Neighbors**, including optimization, regularization, distance metrics, and probability outputs. Also take primary ownership of the preprocessing components most tied to those models, especially feature scaling, PCA, and the standardized-vs.-raw / PCA ablation studies.
-- **Brandon Tran:** Lead the implementation of the tree-based models, specifically **Random Forest** and **Gradient Boosted Trees**, including split criteria, bootstrapping, feature subsampling, boosting rounds, and feature importance analysis. Also own the class imbalance experiments tied to model performance, including class weighting comparisons, stratified sampling behavior, SMOTE, and undersampling.
-- **Shivnarain Sarin:** Lead the **Streamlit dashboard**, experiment logging pipeline, and the **Stacking Ensemble** integration. This includes building the interactive UI, implementing the pin-and-compare functionality, organizing output tables/plots, and connecting the best versions of all base models into the meta-model workflow.
+- **Vandit Vasa:** Lead the implementation of **Neural Network**, including architecture design, activation functions, backpropagation, regularization, and hyperparameter tuning. Also take primary ownership of the preprocessing components most tied to this model, especially feature scaling, PCA, and the standardized vs raw / PCA ablation studies.
+- **Brandon Tran:** Lead the implementation of **Multinomial Logistic Regression**, including optimization (full-batch, mini-batch, SGD), regularization (L1, L2, Elastic Net), convergence analysis, and probability outputs. Also own the class imbalance experiments tied to model performance, including class weighting comparisons, SMOTE, and undersampling.
+- **Shivnarain Sarin:** Lead the implementation of **Gradient Boosted Trees**, including split criteria, residual fitting, learning rate scheduling, feature importance analysis, and the Streamlit dashboard / experiment logging pipeline.
 - **Shared responsibilities:** All three members will collaborate on dataset understanding, evaluation metrics, cross-validation, statistical significance testing, final error analysis, and writing the final report/presentation. Final model comparison, interpretation of results, and polishing the narrative of the project will be done jointly so that every member can speak to both the implementation and the experimental findings.
 
 ## 2. Dataset
@@ -45,7 +45,7 @@ UCI Machine Learning Repository / Kaggle: "Predict Students' Dropout and Academi
 | ------------------ | ----------------------------------------------------------- |
 | Instances          | ~4,424                                                      |
 | Features           | 37                                                          |
-| Target Classes     | 3 (Dropout, Enrolled, Graduate)                             |
+| Target Classes     | 2 (Enrolled, Graduate)                                      |
 | Class Distribution | Imbalanced (Graduate is the majority class)                 |
 | Feature Types      | Mix of integer-encoded categoricals and continuous numerics |
 | Missing Values     | None (pre-cleaned by original authors)                      |
@@ -70,15 +70,14 @@ Unemployment rate, inflation rate, GDP (3 features). These are shared with the s
 
 | Class    | Description                                                            |
 | -------- | ---------------------------------------------------------------------- |
-| Dropout  | Student left the program before completion                             |
 | Enrolled | Student is still in the program (has not yet graduated or dropped out) |
 | Graduate | Student successfully completed the program                             |
-
-The **Enrolled** class is the most ambiguous since these students could eventually fall into either other category.
 
 ## 3. Models: Theory, Implementation & Experiments
 
 ### 3.1 Multinomial Logistic Regression
+
+**Owner: Brandon Tran**
 
 **Theory:**
 
@@ -119,56 +118,13 @@ where R(w) is the regularization term.
 
 - Convergence curves: overlay loss vs. epoch for all batch sizes on one plot.
 - Regularization path: plot magnitude of each weight coefficient as lambda varies from 0.0001 to 10. This shows which features get zeroed out first under L1.
-- Inspect learned coefficients to see which features the linear model relies on most (compare against tree-based feature importance later).
+- Inspect learned coefficients to see which features the linear model relies on most.
 
 ---
 
-### 3.2 Random Forest
+### 3.2 Gradient Boosted Trees
 
-**Theory:**
-
-Random Forest is a bagging ensemble of decision trees. Each tree is trained on a bootstrap sample of the training data, and at each split, only a random subset of features is considered. Predictions are made by majority vote (classification) or averaging probabilities across all trees. The randomness in both data sampling and feature selection decorrelates the trees, reducing variance compared to a single deep tree.
-
-**Implementation Details:**
-
-Decision Tree (building block):
-
-- Split criterion: Gini impurity. For a node with class distribution p_1, p_2, ..., p_K:
-  ```
-  Gini = 1 - sum(p_k^2)
-  ```
-- At each node, iterate over the candidate feature subset, and for each feature iterate over candidate split thresholds (use unique midpoints of sorted values). Choose the split that maximizes the weighted Gini impurity reduction.
-- Stopping conditions: max_depth reached, min_samples_split not met, node is pure.
-- Leaf prediction: store the full class distribution (not just the majority class) so predict_proba works by averaging distributions across trees.
-
-Random Forest wrapper:
-
-- For each tree, draw a bootstrap sample (sample N points with replacement from N).
-- Feature subsampling: at each split, randomly select `max_features` features.
-- Aggregate predictions: average the predicted probability distributions across all trees, then argmax for the final class label.
-- OOB (Out-of-Bag) error: for each training sample, aggregate predictions only from trees that did NOT include that sample in their bootstrap. Report OOB accuracy alongside validation accuracy to show they converge.
-
-Class imbalance handling: use stratified bootstrap sampling. Each bootstrap sample is drawn such that the class proportions match the original training set.
-
-**Hyperparameter Experiments:**
-
-| Hyperparameter                 | Values to Test                    | What It Demonstrates                                                    |
-| ------------------------------ | --------------------------------- | ----------------------------------------------------------------------- |
-| Number of Trees (n_estimators) | 10, 50, 100, 200, 500             | Diminishing returns after a point; OOB error stabilizes                 |
-| Max Depth                      | 3, 5, 10, 20, None (unlimited)    | Controls bias-variance; shallow trees = high bias, deep = high variance |
-| Max Features per Split         | sqrt(n), log2(n), 0.5\*n, n (all) | More features = more correlated trees = less variance reduction         |
-| Min Samples per Split          | 2, 5, 10, 20                      | Regularization effect similar to max_depth                              |
-| Bootstrap                      | True, False                       | Without bootstrap, it becomes a feature-subsampled ensemble             |
-
-**Unique Analyses for This Model:**
-
-- OOB error curve: plot OOB error vs. number of trees to show convergence.
-- Feature importance: computed as the total Gini impurity reduction contributed by each feature across all splits in all trees, normalized to sum to 1. Visualize as a horizontal bar chart, ranked.
-- Tree depth distribution: histogram of actual depths reached across all trees in the forest, showing how max_depth interacts with the data.
-
----
-
-### 3.3 Gradient Boosted Trees
+**Owner: Shivnarain Sarin**
 
 **Theory:**
 
@@ -219,53 +175,44 @@ where h_k^t is the weak learner fit to residuals of class k at round t.
 
 ---
 
-### 3.4 K-Nearest Neighbors
+### 3.3 Neural Network
+
+**Owner: Vandit Vasa**
 
 **Theory:**
 
-KNN is a non-parametric, instance-based model. For a test point x, it finds the K closest training points by some distance metric, then predicts the majority class among those neighbors (or a distance-weighted vote). There is no explicit training phase; all computation happens at prediction time.
-
-The choice of distance metric and K are the primary controls. In high-dimensional spaces, distances become less discriminative (curse of dimensionality) because the ratio of nearest to farthest neighbor distances converges to 1.
+A feedforward neural network learns a hierarchical representation of the input by composing linear transformations with nonlinear activation functions. For multiclass classification, the output layer applies softmax to produce a probability distribution over classes. The model is trained end-to-end by minimizing cross-entropy loss via backpropagation and gradient descent.
 
 **Implementation Details:**
 
-- Distance computation: implement Euclidean, Manhattan, and Minkowski (parameterized by p) distances.
-- For each test point, compute distances to all training points, find the K smallest, and aggregate their labels.
-- Voting schemes: uniform (each neighbor gets 1 vote) and distance-weighted (each neighbor's vote is weighted by 1/distance, with a small epsilon to avoid division by zero).
-- predict_proba: for uniform voting, P(class k) = (count of class k in K neighbors) / K. For distance-weighted, P(class k) = (sum of 1/d for class k neighbors) / (sum of 1/d for all K neighbors).
-- Class weighting: when computing the vote, multiply each neighbor's contribution by the class weight (same formula as logistic regression).
+- Architecture: fully connected layers with configurable depth and width.
+- Activation functions: ReLU (hidden layers), Softmax (output layer).
+- Weight initialization: Xavier/Glorot initialization to prevent vanishing/exploding gradients.
+- Backpropagation: compute gradients analytically using the chain rule; no autograd libraries.
+- Optimizers: mini-batch SGD with optional momentum.
+- Regularization: L2 weight decay (applied to all weight matrices, not biases); dropout (randomly zero out hidden units during training with probability p).
+- Early stopping: monitor validation loss; stop if no improvement for `patience` epochs and revert to best weights.
+- Class weighting: multiply each sample's loss contribution by (N / (n_classes * n_k)) to upweight minority classes.
+- Track training and validation loss at every epoch for convergence plotting.
 
 **Hyperparameter Experiments:**
 
-| Hyperparameter               | Values to Test                        | What It Demonstrates                                                 |
-| ---------------------------- | ------------------------------------- | -------------------------------------------------------------------- |
-| K (number of neighbors)      | 1, 3, 5, 7, 11, 21, 51                | K=1 overfits to noise; large K oversmooths; sweet spot in between    |
-| Distance Metric              | Euclidean, Manhattan, Minkowski (p=3) | Manhattan can be more robust in high dimensions                      |
-| Weighting                    | Uniform, Distance-weighted            | Distance weighting gives closer neighbors more influence             |
-| With/Without PCA             | No PCA vs. PCA at 95% variance        | Demonstrates curse of dimensionality; KNN should improve with PCA    |
-| With/Without Standardization | Standardized vs. Raw                  | Without standardization, features on larger scales dominate distance |
+| Hyperparameter        | Values to Test               | What It Demonstrates                                        |
+| --------------------- | ---------------------------- | ----------------------------------------------------------- |
+| Hidden Layer Depth    | 1, 2, 3 layers               | Deeper networks capture more complex interactions           |
+| Hidden Layer Width    | 32, 64, 128, 256 units       | Wider layers increase capacity; risk of overfitting         |
+| Learning Rate         | 0.001, 0.01, 0.1             | Too high diverges; too low converges slowly                 |
+| L2 Regularization (λ) | 0.0001, 0.001, 0.01, 0.1     | Bias-variance tradeoff; high λ underfits                    |
+| Dropout Rate          | 0.0, 0.2, 0.5                | Dropout as regularization; reduces co-adaptation of neurons |
+| Batch Size            | 32, 64, full-batch           | Noise vs. convergence speed tradeoff                        |
+| Max Epochs            | 500 (early stopping, pat=10) | Prevents overfitting                                        |
 
 **Unique Analyses for This Model:**
 
-- Curse of dimensionality demonstration: plot KNN accuracy vs. number of features used (add features one at a time, ordered by random forest importance). Show that accuracy initially increases as informative features are added, then degrades as noisy/irrelevant features dilute the distance signal.
-- Distance distribution analysis: for a sample test point, plot a histogram of distances to all training points. In high dimensions, this distribution becomes tightly concentrated (all points are roughly equidistant), visually demonstrating why KNN struggles.
-- K sensitivity curve: plot accuracy/F1 vs. K to find the optimal value. Overlay for both uniform and distance-weighted to show how weighting shifts the optimal K.
-
----
-
-### 3.5 Stacking Ensemble (Meta-Model)
-
-**Theory:**
-
-Stacking trains a second-level model on the outputs of the base-level models. The idea is that if different base models make errors in different regions of the feature space, a meta-learner can learn which base model to trust in which situation.
-
-**Implementation Details:**
-
-- Base models: Logistic Regression, Random Forest, Gradient Boosting, KNN (all using their best hyperparameter configurations found during individual experiments).
-- Meta-features: for each training sample, collect the predicted probability vectors from each base model. Since each base model outputs a 3-class probability vector, and there are 4 base models, the meta-feature vector is 4 \* 3 = 12 dimensions.
-- To avoid data leakage, generate meta-features using out-of-fold predictions: use 5-fold cross-validation on the training set, where each fold's base model predictions come from a model trained on the other 4 folds.
-- Meta-learner: Multinomial Logistic Regression (reusing the from-scratch implementation) with L2 regularization. Sweep lambda in {0.001, 0.01, 0.1, 1.0} for the meta-learner.
-- At test time: each base model (now retrained on the full training set) predicts probabilities on the test set, these are concatenated into the meta-feature vector, and the meta-learner makes the final prediction.
+- Convergence curves: overlay training and validation loss vs. epoch for different learning rates and depths.
+- Depth/width ablation: compare macro F1 across all architecture configurations to find the sweet spot.
+- Dropout sensitivity: plot validation F1 vs. dropout rate to show the regularization effect.
+- Weight norm evolution: track the L2 norm of weights per layer across epochs to visualize how regularization constrains learning.
 
 ## 4. Preprocessing Pipeline
 
@@ -290,7 +237,7 @@ Four strategies, compared in a dedicated ablation:
 | Strategy                                | Description                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | None (baseline)                         | Train on the raw imbalanced data.                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| Class-weighted loss                     | Multiply each sample's loss by (N / (n_classes \* n_k)). Applied directly in the loss function for logistic regression and gradient boosting. For KNN, each neighbor's vote is multiplied by its class weight. For random forest, stratified bootstrap sampling.                                                                                                                                                                                   |
+| Class-weighted loss                     | Multiply each sample's loss by (N / (n_classes \* n_k)). Applied directly in the loss function for logistic regression, gradient boosting, and neural network.                                                                                                                                                                                                                                                                                     |
 | SMOTE (Synthetic Minority Oversampling) | Generate synthetic samples for minority classes by interpolating between existing minority samples and their nearest neighbors. Implemented from scratch: for each minority sample, find its 5 nearest same-class neighbors, pick one at random, create a new sample at a random point along the line between them. Oversample until all classes have the same count as the majority class. Applied to the training set only (never the test set). |
 | Random Undersampling                    | Randomly remove majority class samples until all classes have the same count as the minority class.                                                                                                                                                                                                                                                                                                                                                |
 
@@ -299,7 +246,7 @@ Four strategies, compared in a dedicated ablation:
 - Implemented from scratch: center the data, compute the covariance matrix, eigendecompose, project onto the top-k eigenvectors.
 - Threshold: retain enough components to explain 95% of total variance.
 - Fit PCA on the training set, apply the same projection to the test set.
-- PCA is togglable in the dashboard. Primary purpose is the KNN curse-of-dimensionality experiment, but it is tested with all models for completeness.
+- PCA is togglable in the dashboard and tested with all models for completeness.
 
 ### 4.5 Preprocessing Order
 
