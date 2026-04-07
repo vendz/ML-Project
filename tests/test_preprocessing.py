@@ -30,3 +30,24 @@ def test_encode_target_drops_unknown_classes():
 
     assert len(y) == 2
     assert list(y) == [1, 0]
+
+
+def test_split_preserves_stratification():
+    """Train/test split should maintain class proportions."""
+    np.random.seed(42)
+    n = 100
+    df = pd.DataFrame({
+        "F1": np.random.randn(n),
+        "F2": np.random.randn(n),
+        "Target": ["Dropout"] * 30 + ["Graduate"] * 70,
+    })
+    pipeline = PreprocessingPipeline(test_size=0.2, random_state=42)
+    X, y = pipeline._encode_target(df)
+    X_train, X_test, y_train, y_test = pipeline._split(X.values, y)
+
+    assert len(X_train) == 80
+    assert len(X_test) == 20
+    train_ratio = y_train.mean()
+    test_ratio = y_test.mean()
+    assert abs(train_ratio - 0.3) < 0.05
+    assert abs(test_ratio - 0.3) < 0.1

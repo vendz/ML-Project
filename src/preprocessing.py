@@ -53,3 +53,14 @@ class PreprocessingPipeline:
         y = df["Target"].map(self.TARGET_MAP).values.astype(int)
         X = df.drop(columns=["Target"])
         return X, y
+
+    def _split(
+        self, X: np.ndarray, y: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Stratified train/test split."""
+        return train_test_split(
+            X, y,
+            test_size=self.test_size,
+            random_state=self.random_state,
+            stratify=y,
+        )
