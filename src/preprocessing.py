@@ -1,8 +1,9 @@
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.decomposition import PCA
+from sklearn.impute import SimpleImputer
 from imblearn.over_sampling import SMOTE
 from imblearn.under_sampling import RandomUnderSampler
 
@@ -24,7 +25,12 @@ class PreprocessingPipeline:
         Random seed for reproducibility.
     """
 
-    TARGET_MAP = {"Dropout": 1, "Graduate": 0, "Enrolled": 0}
+    TARGET_COL = "Dropout"
+    DROP_COLS = ["Student_ID"]
+    CATEGORICAL_COLS = [
+        "Gender", "Internet_Access", "Part_Time_Job", "Scholarship",
+        "Semester", "Department", "Parental_Education",
+    ]
 
     def __init__(
         self,
@@ -44,19 +50,54 @@ class PreprocessingPipeline:
         self.pca_transformer: PCA | None = None
         self.class_weights: dict | None = None
         self.feature_names: list[str] = []
+        self.label_encoders: dict[str, LabelEncoder] = {}
+        self.num_imputer: SimpleImputer | None = None
+        self.cat_imputer: SimpleImputer | None = None
 
-    def _encode_target(self, df: pd.DataFrame) -> tuple[pd.DataFrame, np.ndarray]:
-        """Encode target: Dropout=1, Graduate/Enrolled=0. Drop unknown classes."""
+    def _prepare_features(self, df: pd.DataFrame) -> tuple[pd.DataFrame, np.ndarray]:
+        """Extract target, drop ID column, return features and labels."""
         df = df.copy()
-        mask = df["Target"].isin(self.TARGET_MAP.keys())
-        df = df[mask]
-        y = df["Target"].map(self.TARGET_MAP).values.astype(int)
-        X = df.drop(columns=["Target"])
+        # Drop columns that aren't features
+        drop = [c for c in self.DROP_COLS if c in df.columns]
+        df = df.drop(columns=drop)
+        y = df[self.TARGET_COL].values.astype(int)
+        X = df.drop(columns=[self.TARGET_COL])
         return X, y
 
+    def _impute(
+        self, X_train: pd.DataFrame, X_test: pd.DataFrame
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """Impute missing values: median for numeric, most_frequent for categorical."""
+        num_cols = X_train.select_dtypes(include="number").columns.tolist()
+        cat_cols = [c for c in self.CATEGORICAL_COLS if c in X_train.columns]
+
+        if num_cols:
+            self.num_imputer = SimpleImputer(strategy="median")
+            X_train[num_cols] = self.num_imputer.fit_transform(X_train[num_cols])
+            X_test[num_cols] = self.num_imputer.transform(X_test[num_cols])
+
+        if cat_cols:
+            self.cat_imputer = SimpleImputer(strategy="most_frequent")
+            X_train[cat_cols] = self.cat_imputer.fit_transform(X_train[cat_cols])
+            X_test[cat_cols] = self.cat_imputer.transform(X_test[cat_cols])
+
+        return X_train, X_test
+
+    def _encode_categoricals(
+        self, X_train: pd.DataFrame, X_test: pd.DataFrame
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """Label-encode categorical columns. Fit on train, transform both."""
+        cat_cols = [c for c in self.CATEGORICAL_COLS if c in X_train.columns]
+        for col in cat_cols:
+            le = LabelEncoder()
+            X_train[col] = le.fit_transform(X_train[col].astype(str))
+            X_test[col] = le.transform(X_test[col].astype(str))
+            self.label_encoders[col] = le
+        return X_train, X_test
+
     def _split(
-        self, X: np.ndarray, y: np.ndarray
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        self, X: pd.DataFrame, y: np.ndarray
+    ) -> tuple[pd.DataFrame, pd.DataFrame, np.ndarray, np.ndarray]:
         """Stratified train/test split."""
         return train_test_split(
             X, y,
@@ -120,19 +161,30 @@ class PreprocessingPipeline:
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Run the full preprocessing pipeline.
 
+        Pipeline order:
+        1. Extract target, drop ID
+        2. Train/test split (stratified)
+        3. Impute missing values (fit on train)
+        4. Encode categoricals (fit on train)
+        5. Standardize (fit on train)
+        6. Handle class imbalance (train only)
+        7. PCA (fit on train, optional)
+
         Returns (X_train, X_test, y_train, y_test) with all transforms applied.
         """
-        X, y = self._encode_target(df)
-        self.feature_names = list(X.columns)
-        X_train, X_test, y_train, y_test = self._split(X.values, y)
-        X_train, X_test = self._standardize(X_train, X_test)
-        X_train, y_train = self._handle_imbalance(X_train, y_train)
-        X_train, X_test = self._apply_pca(X_train, X_test)
+        X, y = self._prepare_features(df)
+        X_train, X_test, y_train, y_test = self._split(X, y)
+        X_train, X_test = self._impute(X_train, X_test)
+        X_train, X_test = self._encode_categoricals(X_train, X_test)
+        self.feature_names = list(X_train.columns)
+        X_train_np, X_test_np = self._standardize(X_train.values, X_test.values)
+        X_train_np, y_train = self._handle_imbalance(X_train_np, y_train)
+        X_train_np, X_test_np = self._apply_pca(X_train_np, X_test_np)
 
         if self.use_pca and self.pca_transformer is not None:
-            self.feature_names = [f"PC{i+1}" for i in range(X_train.shape[1])]
+            self.feature_names = [f"PC{i+1}" for i in range(X_train_np.shape[1])]
 
-        return X_train, X_test, y_train, y_test
+        return X_train_np, X_test_np, y_train, y_test
 
     def transform(self, X: np.ndarray) -> np.ndarray:
         """Apply fitted standardization and PCA to new data."""
