@@ -120,3 +120,32 @@ def test_handle_imbalance_class_weight_passes_through_and_stores_weights():
     assert X_out.shape == X.shape
     assert pipeline.class_weights is not None
     assert pipeline.class_weights[1] > pipeline.class_weights[0]
+
+
+def test_pca_reduces_dimensions():
+    """PCA should reduce feature count while retaining variance threshold."""
+    np.random.seed(42)
+    base = np.random.randn(100, 3)
+    noise = np.random.randn(100, 7) * 0.01
+    X_train = np.hstack([base, noise])
+    X_test = np.hstack([np.random.randn(20, 3), np.random.randn(20, 7) * 0.01])
+
+    pipeline = PreprocessingPipeline(use_pca=True, pca_variance=0.95)
+    X_train_pca, X_test_pca = pipeline._apply_pca(X_train, X_test)
+
+    assert X_train_pca.shape[1] < 10
+    assert X_test_pca.shape[1] == X_train_pca.shape[1]
+    assert pipeline.pca_transformer is not None
+
+
+def test_pca_disabled_passes_through():
+    """When use_pca=False, data should pass through unchanged."""
+    X_train = np.random.randn(50, 5)
+    X_test = np.random.randn(10, 5)
+
+    pipeline = PreprocessingPipeline(use_pca=False)
+    X_train_out, X_test_out = pipeline._apply_pca(X_train, X_test)
+
+    np.testing.assert_array_equal(X_train_out, X_train)
+    np.testing.assert_array_equal(X_test_out, X_test)
+    assert pipeline.pca_transformer is None

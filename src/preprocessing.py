@@ -103,3 +103,14 @@ class PreprocessingPipeline:
             return rus.fit_resample(X, y)
         else:
             raise ValueError(f"Unknown imbalance strategy: {self.imbalance_strategy}")
+
+    def _apply_pca(
+        self, X_train: np.ndarray, X_test: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """If PCA is enabled, fit on train and transform both."""
+        if not self.use_pca:
+            return X_train, X_test
+        self.pca_transformer = PCA(n_components=self.pca_variance, random_state=self.random_state)
+        X_train_pca = self.pca_transformer.fit_transform(X_train)
+        X_test_pca = self.pca_transformer.transform(X_test)
+        return X_train_pca, X_test_pca
