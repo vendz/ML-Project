@@ -239,3 +239,35 @@ def test_get_feature_names_returns_pca_names():
     pipeline.fit_transform(df)
     names = pipeline.get_feature_names()
     assert all(name.startswith("PC") for name in names)
+
+
+import os
+
+
+@pytest.mark.skipif(
+    not os.path.exists("data/dataset.csv")
+    or "Target" not in open("data/dataset.csv").readline(),
+    reason="Correct UCI dataset not available",
+)
+def test_integration_with_real_dataset():
+    """Full pipeline on the actual UCI dataset."""
+    df = pd.read_csv("data/dataset.csv")
+    pipeline = PreprocessingPipeline(
+        imbalance_strategy="smote",
+        use_pca=True,
+        pca_variance=0.95,
+        random_state=42,
+    )
+    X_train, X_test, y_train, y_test = pipeline.fit_transform(df)
+
+    assert X_train.shape[0] > 0
+    assert X_test.shape[0] > 0
+    assert set(np.unique(y_train)) == {0, 1}
+    assert set(np.unique(y_test)) == {0, 1}
+    # SMOTE should have balanced the training set
+    assert (y_train == 0).sum() == (y_train == 1).sum()
+    # PCA should have reduced dimensions
+    assert X_train.shape[1] <= 35
+    # Feature names should be PCA names
+    names = pipeline.get_feature_names()
+    assert all(n.startswith("PC") for n in names)
