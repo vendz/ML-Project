@@ -5,9 +5,9 @@ build/
 dist/
 wheels/
 *.egg-info
+
+# Virtual environments
 .venv
+
+# Jupyter
 .ipynb_checkpoints/
-experiments/
-data/
-.DS_Store
-.claude

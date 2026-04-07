@@ -1,11 +1,11 @@
 """
-Shared preprocessing pipeline
+Shared preprocessing pipeline for student dropout prediction.
 
 Usage
 -----
-from shared.preprocessing import load_data, StandardScaler, SMOTE, PCA, make_pipeline
+from shared.preprocessing import load_data, StandardScaler, SMOTE, random_undersample, PCA
 
-X_train, X_test, y_train, y_test = load_data()
+X_train, X_test, y_train, y_test, feature_names = load_data()
 scaler = StandardScaler().fit(X_train)
 X_train_s = scaler.transform(X_train)
 X_test_s  = scaler.transform(X_test)
@@ -13,32 +13,58 @@ X_test_s  = scaler.transform(X_test)
 
 import numpy as np
 import pandas as pd
-from pathlib import Path
-from sklearn.model_selection import train_test_split  # only for stratified split
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+from sklearn.impute import SimpleImputer
 
-from shared.config import DATA_RAW, RANDOM_SEED, TEST_SIZE, TARGET_COL, POSITIVE_CLASS
+from shared.config import (
+    DATA_DIR, RANDOM_SEED, TEST_SIZE, TARGET_COL,
+    DROP_COLS, CATEGORICAL_COLS,
+)
 
 
 def load_data(csv_name: str = "dataset.csv"):
     """
-    Load raw CSV, drop Dropout rows, encode target, return train/test splits.
+    Load raw CSV, encode categoricals, return train/test splits.
 
     Returns
     -------
     X_train, X_test : float arrays
-    y_train, y_test : int arrays  (0 = Enrolled, 1 = Graduate)
+    y_train, y_test : int arrays  (0 = retained, 1 = dropout)
     feature_names   : list[str]
     """
-    path = DATA_RAW / csv_name
-    df = pd.read_csv(path, sep=";")
+    path = DATA_DIR / csv_name
+    df = pd.read_csv(path)
 
-    # Keep only Enrolled and Graduate
-    df = df[df[TARGET_COL].isin(["Enrolled", "Graduate"])].copy()
-    df[TARGET_COL] = (df[TARGET_COL] == POSITIVE_CLASS).astype(int)
+    # Drop non-feature columns
+    drop = [c for c in DROP_COLS if c in df.columns]
+    df = df.drop(columns=drop)
 
-    X = df.drop(columns=[TARGET_COL]).values.astype(float)
+    # Separate target
     y = df[TARGET_COL].values.astype(int)
-    feature_names = df.drop(columns=[TARGET_COL]).columns.tolist()
+    X = df.drop(columns=[TARGET_COL])
+
+    # Impute missing values: median for numeric, most frequent for categorical
+    num_cols = X.select_dtypes(include="number").columns.tolist()
+    cat_cols = [c for c in CATEGORICAL_COLS if c in X.columns]
+
+    if num_cols:
+        num_imputer = SimpleImputer(strategy="median")
+        X[num_cols] = num_imputer.fit_transform(X[num_cols])
+    if cat_cols:
+        cat_imputer = SimpleImputer(strategy="most_frequent")
+        X[cat_cols] = cat_imputer.fit_transform(X[cat_cols])
+
+    # Label-encode categorical columns
+    label_encoders = {}
+    for col in CATEGORICAL_COLS:
+        if col in X.columns:
+            le = LabelEncoder()
+            X[col] = le.fit_transform(X[col].astype(str))
+            label_encoders[col] = le
+
+    feature_names = X.columns.tolist()
+    X = X.values.astype(float)
 
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=TEST_SIZE, stratify=y, random_state=RANDOM_SEED
@@ -47,6 +73,8 @@ def load_data(csv_name: str = "dataset.csv"):
 
 
 class StandardScaler:
+    """Zero-mean, unit-variance standardization."""
+
     def fit(self, X: np.ndarray) -> "StandardScaler":
         self.mean_ = X.mean(axis=0)
         self.std_  = X.std(axis=0)
@@ -61,7 +89,7 @@ class StandardScaler:
 
 
 class SMOTE:
-    """Synthetic Minority Oversampling"""
+    """Synthetic Minority Oversampling."""
 
     def __init__(self, k: int = 5, random_state: int = RANDOM_SEED):
         self.k = k
@@ -98,6 +126,7 @@ class SMOTE:
 
 
 def random_undersample(X: np.ndarray, y: np.ndarray, random_state: int = RANDOM_SEED):
+    """Undersample majority class to match minority class count."""
     rng = np.random.default_rng(random_state)
     classes, counts = np.unique(y, return_counts=True)
     minority_count = counts.min()
@@ -121,7 +150,6 @@ class PCA:
         X_c = X - self.mean_
         cov = (X_c.T @ X_c) / (len(X) - 1)
         eigenvalues, eigenvectors = np.linalg.eigh(cov)
-        # Sort descending
         order = np.argsort(eigenvalues)[::-1]
         eigenvalues = eigenvalues[order]
         eigenvectors = eigenvectors[:, order]
