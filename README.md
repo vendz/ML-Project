@@ -25,4 +25,4 @@ uv run streamlit run app.py
 Download the dataset from Kaggle and place it in `data/dataset.csv`:
 https://www.kaggle.com/datasets/meharshanali/student-dropout-prediction-dataset
 
-This is the UCI "Predict Students' Dropout and Academic Success" dataset (~4,424 instances, 37 features, 3-class target). No missing values.
+This is the "Student Dropout Prediction" dataset from Kaggle. ~10,000 instances, 18 features (excluding Student_ID), binary target (Dropout: 0 = Retained, 1 = Dropped Out). Class distribution is imbalanced (~76.5% Retained, ~23.5% Dropped Out). ~5% missing values in some columns (Family_Income, Study_Hours_per_Day, Stress_Index, Parental_Education).
