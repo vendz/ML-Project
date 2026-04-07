@@ -10,7 +10,7 @@
 
 ### 1.1 Objective
 
-Predict whether a university student will **drop out**, remain **enrolled**, or **graduate** based on demographic, socio-economic, and academic features. This is a three class classification problem with notable class imbalance.
+Predict whether a university student will remain **enrolled** or **graduate** based on demographic, socio-economic, and academic features. This is a binary classification problem with notable class imbalance.
 
 ### 1.2 Core Philosophy
 
@@ -68,10 +68,10 @@ Unemployment rate, inflation rate, GDP (3 features). These are shared with the s
 
 ### 2.4 Target Variable
 
-| Class    | Description                                                            |
-| -------- | ---------------------------------------------------------------------- |
-| Enrolled | Student is still in the program (has not yet graduated or dropped out) |
-| Graduate | Student successfully completed the program                             |
+| Class    | Description                                             |
+| -------- | ------------------------------------------------------- |
+| Enrolled | Student is still in the program (has not yet graduated) |
+| Graduate | Student successfully completed the program              |
 
 ## 3. Models: Theory, Implementation & Experiments
 
@@ -81,24 +81,24 @@ Unemployment rate, inflation rate, GDP (3 features). These are shared with the s
 
 **Theory:**
 
-Logistic regression models the probability of class k given input x using the softmax function:
+Logistic regression models the probability of the positive class (Graduate) given input x using the sigmoid function:
 
 ```
-P(y=k | x) = exp(w_k . x + b_k) / sum_j(exp(w_j . x + b_j))
+P(y=1 | x) = 1 / (1 + exp(-(w . x + b)))
 ```
 
-The model learns weight vectors w_k and biases b_k for each class by minimizing the cross-entropy loss:
+The model learns weight vector w and bias b by minimizing binary cross-entropy loss:
 
 ```
-L = -(1/N) * sum_i( sum_k( y_ik * log(P(y=k | x_i)) ) ) + lambda * R(w)
+L = -(1/N) * sum_i( y_i * log(P(y=1 | x_i)) + (1 - y_i) * log(1 - P(y=1 | x_i)) ) + lambda * R(w)
 ```
 
 where R(w) is the regularization term.
 
 **Implementation Details:**
 
-- Softmax computation must use the log-sum-exp trick for numerical stability: subtract max(logits) before exponentiating.
-- Weight initialization: Xavier initialization (normal with std = sqrt(2 / (n_features + n_classes))).
+- Sigmoid computation must clip logits to avoid overflow in exp.
+- Weight initialization: Xavier initialization (normal with std = sqrt(2 / (n_features + 1))).
 - Support three optimizers: full-batch gradient descent, mini-batch SGD, and pure SGD (batch_size=1).
 - Support three regularization modes: L2 (Ridge), L1 (Lasso via proximal gradient), and Elastic Net.
 - Class weighting: multiply each sample's loss contribution by (N / (n_classes \* n_k)) where n_k is the count of that sample's class. This upweights minority classes.
@@ -128,31 +128,31 @@ where R(w) is the regularization term.
 
 **Theory:**
 
-Gradient Boosting builds an additive model in a forward stage-wise manner. At each round t, a new weak learner (shallow decision tree) is fit to the negative gradient of the loss function with respect to the current model's predictions. For multiclass classification with cross-entropy loss, the negative gradient for class k and sample i is:
+Gradient Boosting builds an additive model in a forward stage-wise manner. At each round t, a new weak learner (shallow decision tree) is fit to the negative gradient of the loss function with respect to the current model's predictions. For binary classification with log-loss, the negative gradient (pseudo-residual) for sample i is:
 
 ```
-r_ik = y_ik - p_ik
+r_i = y_i - p_i
 ```
 
-where y_ik is the one-hot label and p_ik is the current model's predicted probability for class k. This means at each round, we fit K separate regression trees (one per class) to these residuals.
+where y_i is the binary label and p_i is the current model's predicted probability. At each round, one regression tree is fit to these residuals.
 
 The update rule is:
 
 ```
-F_k^(t)(x) = F_k^(t-1)(x) + learning_rate * h_k^t(x)
+F^(t)(x) = F^(t-1)(x) + learning_rate * h^t(x)
 ```
 
-where h_k^t is the weak learner fit to residuals of class k at round t.
+where h^t is the weak learner fit to the residuals at round t.
 
 **Implementation Details:**
 
-- Initialize F_k^(0) for each class to the log of the class prior probability.
+- Initialize F^(0) to the log-odds of the positive class prior.
 - At each boosting round:
-  1. Compute current probabilities via softmax over all F_k values.
-  2. Compute residuals r_ik = y_ik - p_ik for each class.
-  3. Fit a regression tree (using MSE on the residuals) for each class.
-  4. Leaf values: for each leaf, use the Newton-Raphson step: sum(residuals) / sum(p_ik \* (1 - p_ik)) for that leaf's samples. This is the optimal leaf weight under the second-order approximation.
-  5. Update: F_k += learning_rate \* tree_k predictions.
+  1. Compute current probabilities via sigmoid: p_i = 1 / (1 + exp(-F(x_i))).
+  2. Compute residuals r_i = y_i - p_i.
+  3. Fit a regression tree (using MSE on the residuals).
+  4. Leaf values: for each leaf, use the Newton-Raphson step: sum(residuals) / sum(p_i * (1 - p_i)) for that leaf's samples. This is the optimal leaf weight under the second-order approximation.
+  5. Update: F += learning_rate * tree predictions.
 - Early stopping: after each round, compute validation loss. If it has not improved for `patience` rounds, stop and revert to the best round.
 - Subsampling: optionally train each round's trees on a random fraction of the training data (stochastic gradient boosting).
 
@@ -181,12 +181,12 @@ where h_k^t is the weak learner fit to residuals of class k at round t.
 
 **Theory:**
 
-A feedforward neural network learns a hierarchical representation of the input by composing linear transformations with nonlinear activation functions. For multiclass classification, the output layer applies softmax to produce a probability distribution over classes. The model is trained end-to-end by minimizing cross-entropy loss via backpropagation and gradient descent.
+A feedforward neural network learns a hierarchical representation of the input by composing linear transformations with nonlinear activation functions. For binary classification, the output layer applies sigmoid to produce a probability for the positive class (Graduate). The model is trained end-to-end by minimizing binary cross-entropy loss via backpropagation and gradient descent.
 
 **Implementation Details:**
 
 - Architecture: fully connected layers with configurable depth and width.
-- Activation functions: ReLU (hidden layers), Softmax (output layer).
+- Activation functions: ReLU (hidden layers), Sigmoid (output layer).
 - Weight initialization: Xavier/Glorot initialization to prevent vanishing/exploding gradients.
 - Backpropagation: compute gradients analytically using the chain rule; no autograd libraries.
 - Optimizers: mini-batch SGD with optional momentum.
@@ -267,16 +267,16 @@ Standardization must come before SMOTE (so that interpolation happens in standar
 
 | Metric              | Why                                                                                                                |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Macro F1 Score      | Primary metric. Averages F1 across all three classes equally, so it is not dominated by the majority class.        |
+| Macro F1 Score      | Primary metric. Averages F1 across both classes equally, so it is not dominated by the majority class.             |
 | Per-Class Precision | Shows where the model is making false positives.                                                                   |
-| Per-Class Recall    | Shows where the model is missing true positives. Critical for the Dropout class (we want high recall for dropout). |
+| Per-Class Recall    | Shows where the model is missing true positives. Critical for the Enrolled class (students at risk of not graduating). |
 | Overall Accuracy    | Reported for completeness but NOT used for model selection (misleading under imbalance).                           |
-| Confusion Matrix    | 3x3 matrix visualized as a heatmap. Reveals systematic misclassification patterns.                                 |
+| Confusion Matrix    | 2x2 matrix visualized as a heatmap. Reveals systematic misclassification patterns.                                 |
 
 ### 5.2 ROC Curves and AUC
 
 - Compute one-vs-rest ROC curves for each class.
-- Plot all three curves (Dropout vs. rest, Enrolled vs. rest, Graduate vs. rest) on the same figure.
+- Plot both curves (Enrolled vs. Graduate, Graduate vs. Enrolled) on the same figure.
 - Report per-class AUC and macro-averaged AUC.
 - Uses predict_proba output, so it evaluates the ranking quality of probability estimates.
 
@@ -309,9 +309,8 @@ Standardization must come before SMOTE (so that interpolation happens in standar
 **Complexity levels to compare:**
 
 - Logistic Regression: lambda=10 (high bias) vs. lambda=0.0001 (high variance)
-- Random Forest: max_depth=3 (high bias) vs. max_depth=None (high variance)
 - Gradient Boosting: 10 rounds, depth=1 (high bias) vs. 500 rounds, depth=7 (high variance)
-- KNN: K=51 (high bias) vs. K=1 (high variance)
+- Neural Network: 1 hidden layer, 32 units, high dropout (high bias) vs. 3 hidden layers, 256 units, no dropout (high variance)
 
 ### 6.2 Convergence Analysis (Logistic Regression and Gradient Boosting)
 
@@ -328,7 +327,7 @@ Standardization must come before SMOTE (so that interpolation happens in standar
 
 ### 6.3 Decision Boundary Visualization
 
-**What:** Project data onto the two most important features (expected: 1st and 2nd semester grades), plot the data points colored by true class, and overlay the decision boundaries for all four models.
+**What:** Project data onto the two most important features (expected: 1st and 2nd semester grades), plot the data points colored by true class, and overlay the decision boundaries for all three models.
 
 **How:**
 
@@ -336,28 +335,27 @@ Standardization must come before SMOTE (so that interpolation happens in standar
 - Create a dense meshgrid over the 2D feature space.
 - For each point in the meshgrid, predict the class and color the background accordingly.
 - Overlay the actual data points.
-- Display all four models' decision boundaries in a 2x2 subplot grid.
+- Display all three models' decision boundaries side by side.
 
 **Expected findings:**
 
 - Logistic Regression: straight-line boundaries.
-- KNN: jagged, locally adaptive boundaries.
-- Random Forest: axis-aligned step-function boundaries.
 - Gradient Boosting: smoother axis-aligned boundaries (more rounds = finer granularity).
+- Neural Network: smooth, curved boundaries that can capture nonlinear separations.
 
 ### 6.4 Feature Interaction Analysis
 
-**What:** For the top-3 most important features (as determined by Random Forest/Gradient Boosting importance), create pairwise interaction heatmaps showing how feature combinations affect predicted dropout probability.
+**What:** For the top-3 most important features (as determined by Gradient Boosting feature importance), create pairwise interaction heatmaps showing how feature combinations affect predicted graduation probability.
 
 **How:**
 
 - Take two features (e.g., "Scholarship holder" and "1st semester grade").
 - Create a 2D grid of values spanning each feature's range.
 - For each grid point, fix those two features and set all others to their training-set medians.
-- Run predict_proba through the best model and plot the dropout probability as a heatmap.
+- Run predict_proba through the best model and plot the graduation probability as a heatmap.
 - Repeat for all three pairwise combinations of the top-3 features.
 
-**Why:** This directly tests whether nonlinear models capture compounding effects that a linear model cannot. If the heatmap shows interaction patterns (e.g., low grades + no scholarship = very high dropout, but low grades + scholarship = moderate dropout), that vindicates the project's hypothesis about feature interactions.
+**Why:** This directly tests whether nonlinear models capture compounding effects that a linear model cannot. If the heatmap shows interaction patterns (e.g., low grades + no scholarship = low graduation probability, but low grades + scholarship = moderate graduation probability), that vindicates the project's hypothesis about feature interactions.
 
 ### 6.5 Misclassification Analysis
 
@@ -366,7 +364,7 @@ Standardization must come before SMOTE (so that interpolation happens in standar
 **How:**
 
 - Pull all misclassified test samples.
-- Group by confusion matrix cell (e.g., "Predicted Graduate, Actually Dropout" vs. "Predicted Enrolled, Actually Dropout").
+- Group by confusion matrix cell (e.g., "Predicted Graduate, Actually Enrolled" vs. "Predicted Enrolled, Actually Graduate").
 - For each group, compute summary statistics of key features and compare to correctly classified samples.
 - Identify whether certain student profiles are systematically harder (e.g., students with good 1st semester grades who drop out in the 2nd semester).
 
@@ -378,7 +376,7 @@ Standardization must come before SMOTE (so that interpolation happens in standar
 
 **Expected findings:**
 
-- Without handling: high recall on Graduate (majority), low recall on Dropout and Enrolled.
+- Without handling: high recall on Graduate (majority), low recall on Enrolled.
 - Class weighting: improved recall on minority classes, slight decrease on Graduate.
 - SMOTE: best balance of per-class recalls, slight decrease in precision.
 - Undersampling: improves minority recall but wastes data; highest variance.
