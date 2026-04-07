@@ -79,3 +79,44 @@ def test_class_weight_computation():
     expected_w1 = 10 / (2 * 3)  # ~1.667
     assert abs(weights[0] - expected_w0) < 1e-3
     assert abs(weights[1] - expected_w1) < 1e-3
+
+
+def _make_imbalanced_data():
+    """Helper: 80 class-0, 20 class-1."""
+    np.random.seed(42)
+    X = np.random.randn(100, 3)
+    y = np.array([0] * 80 + [1] * 20)
+    return X, y
+
+
+def test_handle_imbalance_none_passes_through():
+    X, y = _make_imbalanced_data()
+    pipeline = PreprocessingPipeline(imbalance_strategy="none")
+    X_out, y_out = pipeline._handle_imbalance(X, y)
+    assert X_out.shape == X.shape
+    assert list(y_out) == list(y)
+
+
+def test_handle_imbalance_smote_balances_classes():
+    X, y = _make_imbalanced_data()
+    pipeline = PreprocessingPipeline(imbalance_strategy="smote")
+    X_out, y_out = pipeline._handle_imbalance(X, y)
+    assert (y_out == 0).sum() == (y_out == 1).sum()
+    assert len(y_out) > len(y)
+
+
+def test_handle_imbalance_undersample_balances_classes():
+    X, y = _make_imbalanced_data()
+    pipeline = PreprocessingPipeline(imbalance_strategy="undersample")
+    X_out, y_out = pipeline._handle_imbalance(X, y)
+    assert (y_out == 0).sum() == (y_out == 1).sum()
+    assert len(y_out) < len(y)
+
+
+def test_handle_imbalance_class_weight_passes_through_and_stores_weights():
+    X, y = _make_imbalanced_data()
+    pipeline = PreprocessingPipeline(imbalance_strategy="class_weight")
+    X_out, y_out = pipeline._handle_imbalance(X, y)
+    assert X_out.shape == X.shape
+    assert pipeline.class_weights is not None
+    assert pipeline.class_weights[1] > pipeline.class_weights[0]

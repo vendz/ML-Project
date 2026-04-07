@@ -85,3 +85,21 @@ class PreprocessingPipeline:
             weights[int(c)] = n / (n_classes * n_k)
         self.class_weights = weights
         return weights
+
+    def _handle_imbalance(
+        self, X: np.ndarray, y: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Apply the chosen class imbalance strategy to training data."""
+        if self.imbalance_strategy == "none":
+            return X, y
+        elif self.imbalance_strategy == "class_weight":
+            self._compute_class_weights(y)
+            return X, y
+        elif self.imbalance_strategy == "smote":
+            smote = SMOTE(random_state=self.random_state)
+            return smote.fit_resample(X, y)
+        elif self.imbalance_strategy == "undersample":
+            rus = RandomUnderSampler(random_state=self.random_state)
+            return rus.fit_resample(X, y)
+        else:
+            raise ValueError(f"Unknown imbalance strategy: {self.imbalance_strategy}")
