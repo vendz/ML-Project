@@ -51,3 +51,18 @@ def test_split_preserves_stratification():
     test_ratio = y_test.mean()
     assert abs(train_ratio - 0.3) < 0.05
     assert abs(test_ratio - 0.3) < 0.1
+
+
+def test_standardize_fits_on_train_only():
+    """Scaler should be fit on train data only. Both sets should be transformed."""
+    X_train = np.array([[1.0, 100.0], [2.0, 200.0], [3.0, 300.0], [4.0, 400.0]])
+    X_test = np.array([[5.0, 500.0], [6.0, 600.0]])
+
+    pipeline = PreprocessingPipeline()
+    X_train_s, X_test_s = pipeline._standardize(X_train, X_test)
+
+    assert abs(X_train_s[:, 0].mean()) < 1e-10
+    assert abs(X_train_s[:, 0].std(ddof=0) - 1.0) < 1e-10
+    # Test should NOT have mean 0 (transformed with train stats)
+    assert abs(X_test_s[:, 0].mean()) > 0.5
+    assert pipeline.scaler is not None

@@ -64,3 +64,12 @@ class PreprocessingPipeline:
             random_state=self.random_state,
             stratify=y,
         )
+
+    def _standardize(
+        self, X_train: np.ndarray, X_test: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Fit StandardScaler on train, transform both."""
+        self.scaler = StandardScaler()
+        X_train_scaled = self.scaler.fit_transform(X_train)
+        X_test_scaled = self.scaler.transform(X_test)
+        return X_train_scaled, X_test_scaled
