@@ -149,3 +149,93 @@ def test_pca_disabled_passes_through():
     np.testing.assert_array_equal(X_train_out, X_train)
     np.testing.assert_array_equal(X_test_out, X_test)
     assert pipeline.pca_transformer is None
+
+
+def _make_sample_dataframe():
+    """Helper: minimal DataFrame mimicking dataset structure."""
+    np.random.seed(42)
+    n = 200
+    df = pd.DataFrame({
+        "Feature_A": np.random.randn(n),
+        "Feature_B": np.random.randn(n) * 10 + 50,
+        "Feature_C": np.random.randint(0, 5, n).astype(float),
+        "Target": np.random.choice(["Dropout", "Graduate", "Enrolled"], n, p=[0.3, 0.5, 0.2]),
+    })
+    return df
+
+
+def test_fit_transform_returns_correct_shapes():
+    df = _make_sample_dataframe()
+    pipeline = PreprocessingPipeline(test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = pipeline.fit_transform(df)
+
+    total = len(df[df["Target"].isin(["Dropout", "Graduate", "Enrolled"])])
+    expected_train = int(total * 0.8)
+
+    assert abs(len(X_train) - expected_train) <= 1
+    assert X_train.shape[1] == X_test.shape[1]
+    assert len(y_train) == len(X_train)
+    assert len(y_test) == len(X_test)
+
+
+def test_fit_transform_with_smote_increases_train_size():
+    df = _make_sample_dataframe()
+    pipeline_none = PreprocessingPipeline(imbalance_strategy="none", random_state=42)
+    X_train_none, _, _, _ = pipeline_none.fit_transform(df)
+
+    pipeline_smote = PreprocessingPipeline(imbalance_strategy="smote", random_state=42)
+    X_train_smote, _, _, _ = pipeline_smote.fit_transform(df)
+
+    assert len(X_train_smote) >= len(X_train_none)
+
+
+def test_fit_transform_with_pca_reduces_features():
+    df = _make_sample_dataframe()
+    pipeline = PreprocessingPipeline(use_pca=True, pca_variance=0.95, random_state=42)
+    X_train, X_test, _, _ = pipeline.fit_transform(df)
+
+    assert X_train.shape[1] == X_test.shape[1]
+    assert X_train.shape[1] <= 3
+
+
+def test_transform_applies_fitted_scaler():
+    df = _make_sample_dataframe()
+    pipeline = PreprocessingPipeline(random_state=42)
+    pipeline.fit_transform(df)
+
+    new_data = np.array([[1.0, 50.0, 2.0]])
+    transformed = pipeline.transform(new_data)
+    assert transformed.shape == (1, 3)
+    assert not np.allclose(transformed, new_data)
+
+
+def test_get_class_weights_returns_none_when_not_used():
+    df = _make_sample_dataframe()
+    pipeline = PreprocessingPipeline(imbalance_strategy="none")
+    pipeline.fit_transform(df)
+    assert pipeline.get_class_weights() is None
+
+
+def test_get_class_weights_returns_dict_when_used():
+    df = _make_sample_dataframe()
+    pipeline = PreprocessingPipeline(imbalance_strategy="class_weight")
+    pipeline.fit_transform(df)
+    weights = pipeline.get_class_weights()
+    assert isinstance(weights, dict)
+    assert 0 in weights and 1 in weights
+
+
+def test_get_feature_names_returns_original_names():
+    df = _make_sample_dataframe()
+    pipeline = PreprocessingPipeline(use_pca=False)
+    pipeline.fit_transform(df)
+    names = pipeline.get_feature_names()
+    assert names == ["Feature_A", "Feature_B", "Feature_C"]
+
+
+def test_get_feature_names_returns_pca_names():
+    df = _make_sample_dataframe()
+    pipeline = PreprocessingPipeline(use_pca=True, pca_variance=0.95)
+    pipeline.fit_transform(df)
+    names = pipeline.get_feature_names()
+    assert all(name.startswith("PC") for name in names)

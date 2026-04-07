@@ -114,3 +114,39 @@ class PreprocessingPipeline:
         X_train_pca = self.pca_transformer.fit_transform(X_train)
         X_test_pca = self.pca_transformer.transform(X_test)
         return X_train_pca, X_test_pca
+
+    def fit_transform(
+        self, df: pd.DataFrame
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Run the full preprocessing pipeline.
+
+        Returns (X_train, X_test, y_train, y_test) with all transforms applied.
+        """
+        X, y = self._encode_target(df)
+        self.feature_names = list(X.columns)
+        X_train, X_test, y_train, y_test = self._split(X.values, y)
+        X_train, X_test = self._standardize(X_train, X_test)
+        X_train, y_train = self._handle_imbalance(X_train, y_train)
+        X_train, X_test = self._apply_pca(X_train, X_test)
+
+        if self.use_pca and self.pca_transformer is not None:
+            self.feature_names = [f"PC{i+1}" for i in range(X_train.shape[1])]
+
+        return X_train, X_test, y_train, y_test
+
+    def transform(self, X: np.ndarray) -> np.ndarray:
+        """Apply fitted standardization and PCA to new data."""
+        if self.scaler is None:
+            raise RuntimeError("Pipeline has not been fitted. Call fit_transform first.")
+        X_out = self.scaler.transform(X)
+        if self.use_pca and self.pca_transformer is not None:
+            X_out = self.pca_transformer.transform(X_out)
+        return X_out
+
+    def get_class_weights(self) -> dict[int, float] | None:
+        """Return class weights if imbalance_strategy='class_weight', else None."""
+        return self.class_weights
+
+    def get_feature_names(self) -> list[str]:
+        """Return feature names (original or PCA component names)."""
+        return self.feature_names
