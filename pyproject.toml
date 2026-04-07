@@ -5,10 +5,20 @@ description = "Predicting student academic outcomes using classification methods
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "numpy>=2.0",
     "pandas>=2.0",
-    "numpy>=1.24",
-    "scikit-learn>=1.4",
-    "imbalanced-learn>=0.12",
-    "pytest>=8.0",
-    "streamlit>=1.30",
+    "matplotlib>=3.8",
+    "scikit-learn>=1.5",   # used only for train_test_split
+    "streamlit>=1.35",
+    "jupyter>=1.0",
 ]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+
+[project.scripts]
+run-lr  = "logistic_regression.experiments:run_all"
+run-gbt = "gradient_boosting.experiments:run_all"
+run-nn  = "neural_network.experiments:run_all"
