@@ -10,7 +10,7 @@
 
 ### 1.1 Objective
 
-Predict whether a university student will remain **enrolled** or **graduate** based on demographic, socio-economic, and academic features. This is a binary classification problem with notable class imbalance.
+Predict whether a university student will **drop out** or be **retained** based on demographic, academic, behavioral, and resource-access features. This is a binary classification problem with notable class imbalance.
 
 ### 1.2 Core Philosophy
 
@@ -41,37 +41,37 @@ UCI Machine Learning Repository / Kaggle: "Predict Students' Dropout and Academi
 
 ### 2.2 Summary
 
-| Property           | Value                                                       |
-| ------------------ | ----------------------------------------------------------- |
-| Instances          | ~4,424                                                      |
-| Features           | 37                                                          |
-| Target Classes     | 2 (Enrolled, Graduate)                                      |
-| Class Distribution | Imbalanced (Graduate is the majority class)                 |
-| Feature Types      | Mix of integer-encoded categoricals and continuous numerics |
-| Missing Values     | None (pre-cleaned by original authors)                      |
+| Property           | Value                                                          |
+| ------------------ | -------------------------------------------------------------- |
+| Instances          | ~10,000                                                        |
+| Features           | 18 (excluding Student_ID)                                      |
+| Target Classes     | 2 (Retained, Dropped Out)                                      |
+| Class Distribution | Imbalanced (Retained is majority ~76.5%, Dropped Out ~23.5%)   |
+| Feature Types      | Mix of categorical and continuous numerics                     |
+| Missing Values     | ~5% in some columns                                            |
 
 ### 2.3 Feature Groups
 
 Features are organized into four logical groups. This grouping is critical for the feature subset ablation experiments.
 
-**Academic Features (semester performance):**
-Curricular units credited, enrolled, evaluated, approved, grade, and without evaluations for both 1st and 2nd semesters (12 features total). These capture the student's actual academic trajectory.
+**Academic Features (5):**
+GPA, Semester_GPA, CGPA, Semester, Department. These capture the student's academic performance and progression through the program.
 
-**Socio-Economic Features:**
-Scholarship holder, tuition fees up to date, debtor status, mother's qualification, father's qualification, mother's occupation, father's occupation, unemployment rate, inflation rate, GDP (10 features). These capture external economic pressures and family background.
+**Demographic Features (4):**
+Age, Gender, Family_Income, Parental_Education. These capture who the student is and their background at enrollment.
 
-**Demographic Features:**
-Marital status, application mode, application order, course, daytime/evening attendance, previous qualification, previous qualification grade, nationality, mother's/father's qualification, displaced, gender, age at enrollment, international (approximately 10 features depending on exact grouping). These capture who the student is at the time of enrollment.
+**Behavioral & Lifestyle Features (6):**
+Study_Hours_per_Day, Attendance_Rate, Assignment_Delay_Days, Travel_Time_Minutes, Part_Time_Job, Stress_Index. These capture engagement patterns and external pressures on the student's time and wellbeing.
 
-**Macroeconomic Indicators:**
-Unemployment rate, inflation rate, GDP (3 features). These are shared with the socio-economic group but can be isolated to test whether external economic conditions alone have predictive power.
+**Access & Resource Features (2):**
+Internet_Access, Scholarship. These capture whether the student has the material support needed to succeed.
 
 ### 2.4 Target Variable
 
-| Class    | Description                                             |
-| -------- | ------------------------------------------------------- |
-| Enrolled | Student is still in the program (has not yet graduated) |
-| Graduate | Student successfully completed the program              |
+| Class       | Label | Description                                              |
+| ----------- | ----- | -------------------------------------------------------- |
+| Retained    | 0     | Student is continuing in the program (has not dropped out) |
+| Dropped Out | 1     | Student left the program before completion               |
 
 ## 3. Models: Theory, Implementation & Experiments
 
@@ -81,7 +81,7 @@ Unemployment rate, inflation rate, GDP (3 features). These are shared with the s
 
 **Theory:**
 
-Logistic regression models the probability of the positive class (Graduate) given input x using the sigmoid function:
+Logistic regression models the probability of the positive class (Dropped Out) given input x using the sigmoid function:
 
 ```
 P(y=1 | x) = 1 / (1 + exp(-(w . x + b)))
@@ -181,7 +181,7 @@ where h^t is the weak learner fit to the residuals at round t.
 
 **Theory:**
 
-A feedforward neural network learns a hierarchical representation of the input by composing linear transformations with nonlinear activation functions. For binary classification, the output layer applies sigmoid to produce a probability for the positive class (Graduate). The model is trained end-to-end by minimizing binary cross-entropy loss via backpropagation and gradient descent.
+A feedforward neural network learns a hierarchical representation of the input by composing linear transformations with nonlinear activation functions. For binary classification, the output layer applies sigmoid to produce a probability for the positive class (Dropped Out). The model is trained end-to-end by minimizing binary cross-entropy loss via backpropagation and gradient descent.
 
 **Implementation Details:**
 
@@ -269,14 +269,14 @@ Standardization must come before SMOTE (so that interpolation happens in standar
 | ------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | Macro F1 Score      | Primary metric. Averages F1 across both classes equally, so it is not dominated by the majority class.             |
 | Per-Class Precision | Shows where the model is making false positives.                                                                   |
-| Per-Class Recall    | Shows where the model is missing true positives. Critical for the Enrolled class (students at risk of not graduating). |
+| Per-Class Recall    | Shows where the model is missing true positives. Critical for the Dropped Out class (students at risk of leaving the program). |
 | Overall Accuracy    | Reported for completeness but NOT used for model selection (misleading under imbalance).                           |
 | Confusion Matrix    | 2x2 matrix visualized as a heatmap. Reveals systematic misclassification patterns.                                 |
 
 ### 5.2 ROC Curves and AUC
 
 - Compute one-vs-rest ROC curves for each class.
-- Plot both curves (Enrolled vs. Graduate, Graduate vs. Enrolled) on the same figure.
+- Plot both curves (Retained vs. Dropped Out, Dropped Out vs. Retained) on the same figure.
 - Report per-class AUC and macro-averaged AUC.
 - Uses predict_proba output, so it evaluates the ranking quality of probability estimates.
 
@@ -327,7 +327,7 @@ Standardization must come before SMOTE (so that interpolation happens in standar
 
 ### 6.3 Decision Boundary Visualization
 
-**What:** Project data onto the two most important features (expected: 1st and 2nd semester grades), plot the data points colored by true class, and overlay the decision boundaries for all three models.
+**What:** Project data onto the two most important features (expected: GPA/CGPA and Attendance_Rate), plot the data points colored by true class, and overlay the decision boundaries for all three models.
 
 **How:**
 
@@ -349,13 +349,13 @@ Standardization must come before SMOTE (so that interpolation happens in standar
 
 **How:**
 
-- Take two features (e.g., "Scholarship holder" and "1st semester grade").
+- Take two features (e.g., "Scholarship" and "GPA").
 - Create a 2D grid of values spanning each feature's range.
 - For each grid point, fix those two features and set all others to their training-set medians.
 - Run predict_proba through the best model and plot the graduation probability as a heatmap.
 - Repeat for all three pairwise combinations of the top-3 features.
 
-**Why:** This directly tests whether nonlinear models capture compounding effects that a linear model cannot. If the heatmap shows interaction patterns (e.g., low grades + no scholarship = low graduation probability, but low grades + scholarship = moderate graduation probability), that vindicates the project's hypothesis about feature interactions.
+**Why:** This directly tests whether nonlinear models capture compounding effects that a linear model cannot. If the heatmap shows interaction patterns (e.g., low GPA + no scholarship = high dropout probability, but low GPA + scholarship = moderate dropout probability), that vindicates the project's hypothesis about feature interactions.
 
 ### 6.5 Misclassification Analysis
 
@@ -364,9 +364,9 @@ Standardization must come before SMOTE (so that interpolation happens in standar
 **How:**
 
 - Pull all misclassified test samples.
-- Group by confusion matrix cell (e.g., "Predicted Graduate, Actually Enrolled" vs. "Predicted Enrolled, Actually Graduate").
+- Group by confusion matrix cell (e.g., "Predicted Retained, Actually Dropped Out" vs. "Predicted Dropped Out, Actually Retained").
 - For each group, compute summary statistics of key features and compare to correctly classified samples.
-- Identify whether certain student profiles are systematically harder (e.g., students with good 1st semester grades who drop out in the 2nd semester).
+- Identify whether certain student profiles are systematically harder (e.g., students with decent GPA but high Stress_Index and low Attendance_Rate who drop out).
 
 **Output:** A narrative explaining WHY the model fails where it does, supported by data tables and plots. This is the qualitative analysis that ties the quantitative results together.
 
@@ -376,8 +376,8 @@ Standardization must come before SMOTE (so that interpolation happens in standar
 
 **Expected findings:**
 
-- Without handling: high recall on Graduate (majority), low recall on Enrolled.
-- Class weighting: improved recall on minority classes, slight decrease on Graduate.
+- Without handling: high recall on Retained (majority), low recall on Dropped Out.
+- Class weighting: improved recall on Dropped Out, slight decrease on Retained.
 - SMOTE: best balance of per-class recalls, slight decrease in precision.
 - Undersampling: improves minority recall but wastes data; highest variance.
 
