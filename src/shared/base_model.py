@@ -1,8 +1,7 @@
 """
 Abstract base class that every model must implement.
 
-This contract is what lets Shiv's dashboard and any cross-model
-comparison code call all three models identically.
+This contract is what lets any cross-model comparison code call all three models identically.
 """
 from abc import ABC, abstractmethod
 import numpy as np

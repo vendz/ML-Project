@@ -1,7 +1,3 @@
-"""
-Gradient Boosted Trees — Binary (Enrolled vs. Graduate)
-Owner: Shivnarain Sarin
-"""
 import numpy as np
 from shared.base_model import BaseModel
 
@@ -56,12 +52,10 @@ class GradientBoostedTrees(BaseModel):
         self.class_weight = class_weight
         self.random_state = random_state
 
-        self.F0_: float | None = None          # initial log-odds
+        self.F0_: float | None = None
         self.trees_: list[DecisionStump] = []
         self.train_loss_: list[float] = []
         self.val_loss_: list[float] = []
-
-    # ── public API ──────────────────────────────────────────────────────────────
 
     def fit(self, X: np.ndarray, y: np.ndarray,
             X_val: np.ndarray | None = None,
@@ -87,8 +81,6 @@ class GradientBoostedTrees(BaseModel):
             "max_depth": self.max_depth, "subsample": self.subsample,
             "patience": self.patience, "class_weight": self.class_weight,
         }
-
-    # ── private helpers ─────────────────────────────────────────────────────────
 
     @staticmethod
     def _sigmoid(z: np.ndarray) -> np.ndarray:

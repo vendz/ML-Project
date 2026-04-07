@@ -1,7 +1,3 @@
-"""
-Multinomial Logistic Regression — Binary (Enrolled vs. Graduate)
-Owner: Brandon Tran
-"""
 import numpy as np
 from shared.base_model import BaseModel
 
@@ -48,8 +44,6 @@ class LogisticRegression(BaseModel):
         self.b_: float | None = None
         self.loss_history_: list[float] = []
 
-    # ── public API ──────────────────────────────────────────────────────────────
-
     def fit(self, X: np.ndarray, y: np.ndarray) -> "LogisticRegression":
         # TODO: implement
         raise NotImplementedError
@@ -68,8 +62,6 @@ class LogisticRegression(BaseModel):
             "max_epochs": self.max_epochs, "patience": self.patience,
             "class_weight": self.class_weight,
         }
-
-    # ── private helpers ─────────────────────────────────────────────────────────
 
     @staticmethod
     def _sigmoid(z: np.ndarray) -> np.ndarray:

@@ -1,5 +1,5 @@
 """
-Shared preprocessing pipeline (all implemented from scratch).
+Shared preprocessing pipeline
 
 Usage
 -----
@@ -10,6 +10,7 @@ scaler = StandardScaler().fit(X_train)
 X_train_s = scaler.transform(X_train)
 X_test_s  = scaler.transform(X_test)
 """
+
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -17,8 +18,6 @@ from sklearn.model_selection import train_test_split  # only for stratified spli
 
 from shared.config import DATA_RAW, RANDOM_SEED, TEST_SIZE, TARGET_COL, POSITIVE_CLASS
 
-
-# ── Data loading ───────────────────────────────────────────────────────────────
 
 def load_data(csv_name: str = "dataset.csv"):
     """
@@ -47,8 +46,6 @@ def load_data(csv_name: str = "dataset.csv"):
     return X_train, X_test, y_train, y_test, feature_names
 
 
-# ── StandardScaler ─────────────────────────────────────────────────────────────
-
 class StandardScaler:
     def fit(self, X: np.ndarray) -> "StandardScaler":
         self.mean_ = X.mean(axis=0)
@@ -63,10 +60,8 @@ class StandardScaler:
         return self.fit(X).transform(X)
 
 
-# ── SMOTE ──────────────────────────────────────────────────────────────────────
-
 class SMOTE:
-    """Synthetic Minority Oversampling (from scratch)."""
+    """Synthetic Minority Oversampling"""
 
     def __init__(self, k: int = 5, random_state: int = RANDOM_SEED):
         self.k = k
@@ -102,8 +97,6 @@ class SMOTE:
         return np.array(synthetic)
 
 
-# ── Random Undersampling ───────────────────────────────────────────────────────
-
 def random_undersample(X: np.ndarray, y: np.ndarray, random_state: int = RANDOM_SEED):
     rng = np.random.default_rng(random_state)
     classes, counts = np.unique(y, return_counts=True)
@@ -117,10 +110,8 @@ def random_undersample(X: np.ndarray, y: np.ndarray, random_state: int = RANDOM_
     return X[idx], y[idx]
 
 
-# ── PCA ────────────────────────────────────────────────────────────────────────
-
 class PCA:
-    """From-scratch PCA via eigendecomposition of the covariance matrix."""
+    """PCA via eigendecomposition of the covariance matrix."""
 
     def __init__(self, variance_threshold: float = 0.95):
         self.variance_threshold = variance_threshold

@@ -1,10 +1,3 @@
-"""
-Neural Network experiment runner.
-Owner: Vandit Vasa
-
-Run with:  python -m neural_network.experiments
-Results logged to:  experiments/neural_network/log.jsonl
-"""
 import numpy as np
 from shared.preprocessing import load_data, StandardScaler, SMOTE, random_undersample
 from shared.evaluation import cross_validate, classification_report, roc_auc, log_experiment
@@ -18,8 +11,6 @@ def run_all():
     scaler = StandardScaler().fit(X_train)
     X_train_s = scaler.transform(X_train)
     X_test_s  = scaler.transform(X_test)
-
-    # ── Hyperparameter sweeps ──────────────────────────────────────────────────
 
     sweep_depth  = [[32], [64, 32], [128, 64, 32]]
     sweep_width  = [32, 64, 128, 256]

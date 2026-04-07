@@ -12,10 +12,7 @@ from datetime import datetime
 from shared.config import EXPERIMENTS
 
 
-# ── Core metrics ───────────────────────────────────────────────────────────────
-
 def confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
-    """Return 2x2 confusion matrix [[TN, FP], [FN, TP]]."""
     cm = np.zeros((2, 2), dtype=int)
     for t, p in zip(y_true, y_pred):
         cm[t, p] += 1
@@ -49,14 +46,6 @@ def classification_report(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
 
 
 def roc_auc(y_true: np.ndarray, y_proba: np.ndarray) -> tuple[np.ndarray, np.ndarray, float]:
-    """
-    Compute ROC curve and AUC (trapezoidal rule).
-
-    Returns
-    -------
-    fpr, tpr : arrays
-    auc       : float
-    """
     thresholds = np.sort(np.unique(y_proba))[::-1]
     fpr_list, tpr_list = [0.0], [0.0]
     neg = (y_true == 0).sum()
@@ -75,8 +64,6 @@ def roc_auc(y_true: np.ndarray, y_proba: np.ndarray) -> tuple[np.ndarray, np.nda
     return fpr, tpr, auc
 
 
-# ── Cross-validation ───────────────────────────────────────────────────────────
-
 def stratified_kfold_indices(y: np.ndarray, k: int = 5, random_state: int = 42):
     """Yield (train_idx, val_idx) for k stratified folds."""
     rng = np.random.default_rng(random_state)
@@ -94,14 +81,6 @@ def stratified_kfold_indices(y: np.ndarray, k: int = 5, random_state: int = 42):
 
 def cross_validate(model_cls, params: dict, X: np.ndarray, y: np.ndarray,
                    k: int = 5) -> dict:
-    """
-    Run k-fold CV and return mean/std of macro_f1 and accuracy.
-
-    Parameters
-    ----------
-    model_cls : class (subclass of BaseModel)
-    params    : constructor kwargs
-    """
     f1s, accs = [], []
     for train_idx, val_idx in stratified_kfold_indices(y, k):
         model = model_cls(**params).fit(X[train_idx], y[train_idx])
@@ -117,14 +96,8 @@ def cross_validate(model_cls, params: dict, X: np.ndarray, y: np.ndarray,
     }
 
 
-# ── Experiment logger ──────────────────────────────────────────────────────────
-
 def log_experiment(model_name: str, params: dict, metrics: dict,
                    extra: dict | None = None):
-    """
-    Append one experiment run to experiments/<model_name>/log.jsonl.
-    Each line is a self-contained JSON record.
-    """
     out_dir = EXPERIMENTS / model_name
     out_dir.mkdir(parents=True, exist_ok=True)
     record = {

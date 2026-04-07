@@ -19,8 +19,6 @@ def run_all():
     X_train_s = scaler.transform(X_train)
     X_test_s  = scaler.transform(X_test)
 
-    # ── Hyperparameter sweeps ──────────────────────────────────────────────────
-
     sweep_lr = [0.001, 0.01, 0.1]
     sweep_lambda = [0.0001, 0.001, 0.01, 0.1, 1.0, 10.0]
     sweep_reg = ["l2", "l1", "elasticnet"]

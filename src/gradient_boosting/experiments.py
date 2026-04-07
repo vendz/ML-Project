@@ -1,10 +1,3 @@
-"""
-Gradient Boosted Trees experiment runner.
-Owner: Shivnarain Sarin
-
-Run with:  python -m gradient_boosting.experiments
-Results logged to:  experiments/gradient_boosting/log.jsonl
-"""
 import numpy as np
 from shared.preprocessing import load_data, StandardScaler, SMOTE, random_undersample
 from shared.evaluation import cross_validate, classification_report, roc_auc, log_experiment
@@ -18,8 +11,6 @@ def run_all():
     scaler = StandardScaler().fit(X_train)
     X_train_s = scaler.transform(X_train)
     X_test_s  = scaler.transform(X_test)
-
-    # ── Hyperparameter sweeps ──────────────────────────────────────────────────
 
     sweep_lr = [0.01, 0.05, 0.1, 0.3]
     sweep_rounds = [50, 100, 200, 500]

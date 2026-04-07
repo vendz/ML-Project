@@ -19,11 +19,9 @@ from logistic_regression.model import LogisticRegression
 from gradient_boosting.model import GradientBoostedTrees
 from neural_network.model import NeuralNetwork
 
-# ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(page_title="Student Outcome Prediction", layout="wide")
 st.title("Student Academic Outcome Prediction — Interactive Dashboard")
 
-# ── Load data (cached) ─────────────────────────────────────────────────────────
 @st.cache_data
 def get_data():
     return load_data()
@@ -33,14 +31,14 @@ scaler = StandardScaler().fit(X_train)
 X_train_s = scaler.transform(X_train)
 X_test_s  = scaler.transform(X_test)
 
-# ── Sidebar: model selector ────────────────────────────────────────────────────
+# Sidebar
 model_name = st.sidebar.selectbox("Model", ["Logistic Regression",
                                              "Gradient Boosted Trees",
                                              "Neural Network"])
 
 st.sidebar.markdown("---")
 
-# ── Model-specific hyperparameter controls ─────────────────────────────────────
+# Model specific hyperparameter controls
 if model_name == "Logistic Regression":
     lr      = st.sidebar.select_slider("Learning Rate", [0.001, 0.01, 0.1], value=0.01)
     lam     = st.sidebar.select_slider("Lambda (regularization)", [0.0001, 0.001, 0.01, 0.1, 1.0, 10.0], value=0.01)
@@ -72,7 +70,7 @@ else:  # Neural Network
                    batch_size=32, max_epochs=500, patience=10, class_weight=cw)
     model   = NeuralNetwork(**params)
 
-# ── Train & evaluate ───────────────────────────────────────────────────────────
+# Train & evaluate
 if st.sidebar.button("Train & Evaluate"):
     with st.spinner("Training..."):
         model.fit(X_train_s, y_train)
@@ -89,6 +87,6 @@ if st.sidebar.button("Train & Evaluate"):
     st.subheader("Per-Class Results")
     st.json({k: v for k, v in report.items() if k not in ("macro_f1", "accuracy")})
 
-    # TODO: Shiv — add plots (confusion matrix, ROC curve, convergence curve)
+    # TODO: add plots (confusion matrix, ROC curve, convergence curve)
     # from dashboard.components.plots import plot_confusion_matrix, plot_roc
     st.info("Plotting components coming soon — add them in src/dashboard/components/plots.py")

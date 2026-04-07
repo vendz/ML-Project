@@ -1,7 +1,3 @@
-"""
-Feedforward Neural Network — Binary (Enrolled vs. Graduate)
-Owner: Vandit Vasa
-"""
 import numpy as np
 from shared.base_model import BaseModel
 
@@ -48,12 +44,11 @@ class NeuralNetwork(BaseModel):
         self.class_weight = class_weight
         self.random_state = random_state
 
-        self.weights_: list[np.ndarray] = []   # W for each layer
-        self.biases_:  list[np.ndarray] = []   # b for each layer
+        self.weights_: list[np.ndarray] = []
+        self.biases_:  list[np.ndarray] = []
         self.train_loss_: list[float] = []
         self.val_loss_:   list[float] = []
 
-    # ── public API ──────────────────────────────────────────────────────────────
 
     def fit(self, X: np.ndarray, y: np.ndarray,
             X_val: np.ndarray | None = None,
@@ -76,8 +71,6 @@ class NeuralNetwork(BaseModel):
             "patience": self.patience, "momentum": self.momentum,
             "class_weight": self.class_weight,
         }
-
-    # ── private helpers ─────────────────────────────────────────────────────────
 
     @staticmethod
     def _relu(z: np.ndarray) -> np.ndarray:

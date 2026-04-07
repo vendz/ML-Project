@@ -8,7 +8,7 @@ dependencies = [
     "numpy>=2.0",
     "pandas>=2.0",
     "matplotlib>=3.8",
-    "scikit-learn>=1.5",   # used only for train_test_split
+    "scikit-learn>=1.5",
     "streamlit>=1.35",
     "jupyter>=1.0",
 ]

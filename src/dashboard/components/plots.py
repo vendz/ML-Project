@@ -1,10 +1,3 @@
-"""
-Reusable plot helpers for the Streamlit dashboard.
-Owner: Shivnarain Sarin
-
-All functions return Matplotlib figures so they can be rendered
-with st.pyplot(fig) in app.py.
-"""
 import numpy as np
 import matplotlib.pyplot as plt
 
