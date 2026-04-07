@@ -73,3 +73,15 @@ class PreprocessingPipeline:
         X_train_scaled = self.scaler.fit_transform(X_train)
         X_test_scaled = self.scaler.transform(X_test)
         return X_train_scaled, X_test_scaled
+
+    def _compute_class_weights(self, y: np.ndarray) -> dict[int, float]:
+        """Compute class weights: N / (n_classes * n_k) for each class k."""
+        classes = np.unique(y)
+        n = len(y)
+        n_classes = len(classes)
+        weights = {}
+        for c in classes:
+            n_k = (y == c).sum()
+            weights[int(c)] = n / (n_classes * n_k)
+        self.class_weights = weights
+        return weights

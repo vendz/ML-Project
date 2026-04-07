@@ -66,3 +66,16 @@ def test_standardize_fits_on_train_only():
     # Test should NOT have mean 0 (transformed with train stats)
     assert abs(X_test_s[:, 0].mean()) > 0.5
     assert pipeline.scaler is not None
+
+
+def test_class_weight_computation():
+    """Class weights should follow N / (n_classes * n_k) formula."""
+    y_train = np.array([0, 0, 0, 0, 0, 0, 0, 1, 1, 1])  # 7 vs 3
+    pipeline = PreprocessingPipeline(imbalance_strategy="class_weight")
+
+    weights = pipeline._compute_class_weights(y_train)
+
+    expected_w0 = 10 / (2 * 7)  # ~0.714
+    expected_w1 = 10 / (2 * 3)  # ~1.667
+    assert abs(weights[0] - expected_w0) < 1e-3
+    assert abs(weights[1] - expected_w1) < 1e-3
