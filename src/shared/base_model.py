@@ -17,7 +17,7 @@ class BaseModel(ABC):
         Parameters
         ----------
         X : (n_samples, n_features) float array, already preprocessed
-        y : (n_samples,) int array, 0 = Enrolled, 1 = Graduate
+        y : (n_samples,) int array, 0 = Enrolled, 1 = Dropout
 
         Returns
         -------
@@ -37,7 +37,7 @@ class BaseModel(ABC):
     @abstractmethod
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         """
-        Predict probability of the positive class (Graduate).
+        Predict probability of the positive class (Dropout).
 
         Returns
         -------
