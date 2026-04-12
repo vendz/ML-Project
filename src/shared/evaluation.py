@@ -1,9 +1,3 @@
-"""
-Shared evaluation utilities.
-
-All metric functions work on (y_true, y_pred) or (y_true, y_proba)
-and return plain dicts/arrays so results are easy to log or plot.
-"""
 import numpy as np
 import json
 from pathlib import Path
@@ -64,8 +58,24 @@ def roc_auc(y_true: np.ndarray, y_proba: np.ndarray) -> tuple[np.ndarray, np.nda
     return fpr, tpr, auc
 
 
+def precision_recall_auc(
+    y_true: np.ndarray, y_proba: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, float]:
+    thresholds = np.sort(np.unique(y_proba))[::-1]
+    pos_mask   = y_true == 1
+    pred_matrix = y_proba[np.newaxis, :] >= thresholds[:, np.newaxis]
+    tp = pred_matrix[:,  pos_mask].sum(axis=1).astype(float)
+    fp = pred_matrix[:, ~pos_mask].sum(axis=1).astype(float)
+    fn = (~pred_matrix)[:, pos_mask].sum(axis=1).astype(float)
+    precisions = np.where(tp + fp > 0, tp / (tp + fp), 1.0)
+    recalls    = np.where(tp + fn > 0, tp / (tp + fn), 0.0)
+    recalls    = np.concatenate([[0.0], recalls])
+    precisions = np.concatenate([[1.0], precisions])
+    auc_pr     = float(np.trapezoid(precisions, recalls))
+    return recalls, precisions, auc_pr
+
+
 def stratified_kfold_indices(y: np.ndarray, k: int = 5, random_state: int = 42):
-    """Yield (train_idx, val_idx) for k stratified folds."""
     rng = np.random.default_rng(random_state)
     classes = np.unique(y)
     class_indices = {c: rng.permutation(np.where(y == c)[0]) for c in classes}
