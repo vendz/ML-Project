@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 
 def plot_confusion_matrix(cm: np.ndarray,
-                          labels: list[str] = ["Enrolled", "Graduate"]) -> plt.Figure:
+                          labels: list[str] = ["Enrolled", "Dropout"]) -> plt.Figure:
     fig, ax = plt.subplots()
     im = ax.imshow(cm, cmap="Blues")
     ax.set_xticks([0, 1]); ax.set_xticklabels(labels)

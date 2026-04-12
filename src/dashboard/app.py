@@ -14,10 +14,11 @@ import streamlit as st
 import numpy as np
 
 from shared.preprocessing import load_data, StandardScaler
-from shared.evaluation import classification_report, roc_auc
+from shared.evaluation import classification_report, roc_auc, confusion_matrix
 from logistic_regression.model import LogisticRegression
 from gradient_boosting.model import GradientBoostedTrees
 from neural_network.model import NeuralNetwork
+from dashboard.components.plots import plot_confusion_matrix, plot_roc
 
 st.set_page_config(page_title="Student Outcome Prediction", layout="wide")
 st.title("Student Academic Outcome Prediction — Interactive Dashboard")
@@ -51,14 +52,14 @@ if model_name == "Logistic Regression":
     model   = LogisticRegression(**params)
 
 elif model_name == "Gradient Boosted Trees":
-    lr      = st.sidebar.select_slider("Learning Rate", [0.01, 0.05, 0.1, 0.3], value=0.1)
-    rounds  = st.sidebar.slider("Boosting Rounds", 10, 500, 100, step=10)
-    depth   = st.sidebar.slider("Max Tree Depth", 1, 7, 3)
-    ss      = st.sidebar.slider("Subsample Rate", 0.5, 1.0, 1.0, step=0.1)
-    cw      = st.sidebar.checkbox("Class Weighting", value=True)
-    params  = dict(n_rounds=rounds, learning_rate=lr, max_depth=depth,
-                   subsample=ss, patience=10, class_weight=cw)
-    model   = GradientBoostedTrees(**params)
+    lr        = st.sidebar.select_slider("Learning Rate", [0.01, 0.05, 0.1, 0.3], value=0.05)
+    rounds    = st.sidebar.slider("Boosting Rounds", 10, 500, 100, step=10)
+    depth     = st.sidebar.slider("Max Tree Depth", 1, 8, 7)
+    ss        = st.sidebar.slider("Subsample Rate", 0.5, 1.0, 0.8, step=0.1)
+    threshold = st.sidebar.slider("Decision Threshold", 0.10, 0.90, 0.33, step=0.01)
+    params    = dict(learning_rate=lr, n_estimators=rounds, max_depth=depth,
+                     subsample=ss, threshold=threshold)
+    model     = GradientBoostedTrees(**params)
 
 else:  # Neural Network
     depth   = st.sidebar.selectbox("Hidden Layers", ["[32]", "[64, 32]", "[128, 64, 32]"])
@@ -87,6 +88,11 @@ if st.sidebar.button("Train & Evaluate"):
     st.subheader("Per-Class Results")
     st.json({k: v for k, v in report.items() if k not in ("macro_f1", "accuracy")})
 
-    # TODO: add plots (confusion matrix, ROC curve, convergence curve)
-    # from dashboard.components.plots import plot_confusion_matrix, plot_roc
-    st.info("Plotting components coming soon — add them in src/dashboard/components/plots.py")
+
+    st.subheader("Confusion Matrix & ROC Curve")
+    pcol1, pcol2 = st.columns(2)
+    with pcol1:
+        cm = confusion_matrix(y_test, y_pred)
+        st.pyplot(plot_confusion_matrix(cm))
+    with pcol2:
+        st.pyplot(plot_roc(fpr, tpr, auc))
