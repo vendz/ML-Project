@@ -13,7 +13,7 @@ from logistic_regression.model import LogisticRegression
 from gradient_boosting.model import GradientBoostedTrees
 from neural_network.model import NeuralNetwork
 from dashboard.components.plots import (
-    plot_confusion_matrix, plot_roc, plot_loss_curve,
+    plot_confusion_matrix, plot_roc, plot_loss_curve, plot_feature_importance,
     plot_pr_curve, plot_dead_neurons, plot_confidence_histogram,
 )
 
@@ -205,6 +205,11 @@ if st.sidebar.button("Train & Evaluate"):
     with pcol2:
         st.pyplot(plot_roc(fpr, tpr, auc))
 
+    if model_name == "Gradient Boosted Trees":
+        st.subheader("Feature Importance")
+        importances, aug_names = model.feature_importance(feature_names)
+        st.pyplot(plot_feature_importance(importances, aug_names))
+
     if model_name == "Neural Network":
         st.session_state["nn_results"] = {
             "y_proba":      y_proba,
@@ -248,9 +253,9 @@ if model_name == "Neural Network" and "nn_results" in st.session_state:
     _yt = (_yp >= _thresh).astype(int)
     _rt = classification_report(y_test, _yt)
     tc1, tc2, tc3, tc4 = st.columns(4)
-    tc1.metric("Precision (grad.)", f"{_rt['graduate']['precision']:.3f}")
-    tc2.metric("Recall (grad.)",    f"{_rt['graduate']['recall']:.3f}")
-    tc3.metric("F1 (grad.)",        f"{_rt['graduate']['f1']:.3f}")
+    tc1.metric("Precision (dropout)", f"{_rt['dropout']['precision']:.3f}")
+    tc2.metric("Recall (dropout)",    f"{_rt['dropout']['recall']:.3f}")
+    tc3.metric("F1 (dropout)",        f"{_rt['dropout']['f1']:.3f}")
     tc4.metric("Accuracy",          f"{_rt['accuracy']:.3f}")
 
     st.markdown("#### Model Behaviour")

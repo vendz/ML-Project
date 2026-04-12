@@ -123,6 +123,17 @@ class GradientBoostedTrees(BaseModel):
             "threshold": self.threshold,
         }
 
+    def feature_importance(self, feature_names: list[str]) -> tuple[np.ndarray, list[str]]:
+        """Return (importances, augmented_feature_names) for all 35 features."""
+        n_pca = self._pca.n_components_
+        aug_names = (
+            list(feature_names)
+            + ["cluster_id"]
+            + [f"pca_{i}" for i in range(n_pca)]
+            + [f"dist_cluster_{i}" for i in range(self.n_clusters)]
+        )
+        return self._xgb.feature_importances_, aug_names
+
     # ---- private helpers ----
 
     def _augment(self, X: np.ndarray) -> np.ndarray:
