@@ -82,5 +82,123 @@ def plot_imbalance_comparison():
     print(f"Saved: {out}")
 
 
+def plot_roc_curves():
+    """
+    ROC curves for each imbalance strategy on the test set.
+    Re-fits one model per strategy using the confirmed best config (batch_size=32).
+    All four curves plotted on a single axes for direct AUC comparison.
+    """
+    from shared.preprocessing import load_data, StandardScaler, SMOTE, random_undersample
+    from shared.evaluation import roc_auc
+    from shared.config import RANDOM_SEED
+    from logistic_regression.model import LogisticRegression
+
+    X_train, X_test, y_train, y_test, _ = load_data("raw/dataset.csv")
+    scaler = StandardScaler().fit(X_train)
+    X_train_s = scaler.transform(X_train)
+    X_test_s  = scaler.transform(X_test)
+
+    best = dict(lr=0.1, lambda_=0.001, reg="l1", batch_size=32,
+                max_epochs=1000, patience=10)
+
+    strategies = {
+        "none":         (X_train_s, y_train, False),
+        "class_weight": (X_train_s, y_train, True),
+        "smote":        (*SMOTE(random_state=RANDOM_SEED).fit_resample(X_train_s, y_train), False),
+        "undersample":  (*random_undersample(X_train_s, y_train, RANDOM_SEED), False),
+    }
+
+    _, ax = plt.subplots(figsize=(7, 6))
+    ax.plot([0, 1], [0, 1], color="grey", linestyle="--", label="Random (AUC = 0.500)")
+
+    for name, (Xb, yb, use_cw) in strategies.items():
+        model = LogisticRegression(**best, class_weight=use_cw).fit(Xb, yb)
+        scores = model.predict_proba(X_test_s)
+        fpr, tpr, auc = roc_auc(y_test, scores)
+        ax.plot(fpr, tpr, label=f"{name} (AUC = {auc:.3f})")
+
+    ax.set_xlabel("False Positive Rate")
+    ax.set_ylabel("True Positive Rate")
+    ax.set_title("Logistic Regression — ROC Curves by Imbalance Strategy")
+    ax.legend(loc="lower right")
+    plt.tight_layout()
+    out = RESULTS / "figures" / "lr_roc_curves.png"
+    plt.savefig(out, dpi=150)
+    plt.close()
+    print(f"Saved: {out}")
+
+
+def _precision_recall_curve(y_true: np.ndarray, y_score: np.ndarray):
+    """
+    Compute precision-recall curve for the positive (dropout) class.
+    Returns (recalls, precisions, area_under_curve).
+    """
+    thresholds = np.sort(np.unique(y_score))[::-1]
+    pos = (y_true == 1).sum()
+    precisions, recalls = [1.0], [0.0]  # anchor at recall=0, precision=1
+    for t in thresholds:
+        y_pred = (y_score >= t).astype(int)
+        tp = ((y_pred == 1) & (y_true == 1)).sum()
+        fp = ((y_pred == 1) & (y_true == 0)).sum()
+        precision = tp / (tp + fp) if (tp + fp) > 0 else 1.0
+        recall    = tp / pos if pos > 0 else 0.0
+        precisions.append(precision)
+        recalls.append(recall)
+    area = float(np.trapezoid(precisions, recalls))
+    return np.array(recalls), np.array(precisions), area
+
+
+def plot_precision_recall_curves():
+    """
+    Precision-recall curves for each imbalance strategy on the test set (dropout class).
+    PR curves are more informative than ROC for imbalanced classification — they focus
+    entirely on the positive class and are not inflated by true negatives.
+    Baseline is a horizontal line at the positive class prevalence (~0.235).
+    """
+    from shared.preprocessing import load_data, StandardScaler, SMOTE, random_undersample
+    from shared.config import RANDOM_SEED
+    from logistic_regression.model import LogisticRegression
+
+    X_train, X_test, y_train, y_test, _ = load_data("raw/dataset.csv")
+    scaler = StandardScaler().fit(X_train)
+    X_train_s = scaler.transform(X_train)
+    X_test_s  = scaler.transform(X_test)
+
+    best = dict(lr=0.1, lambda_=0.001, reg="l1", batch_size=32,
+                max_epochs=1000, patience=10)
+
+    strategies = {
+        "none":         (X_train_s, y_train, False),
+        "class_weight": (X_train_s, y_train, True),
+        "smote":        (*SMOTE(random_state=RANDOM_SEED).fit_resample(X_train_s, y_train), False),
+        "undersample":  (*random_undersample(X_train_s, y_train, RANDOM_SEED), False),
+    }
+
+    _, ax = plt.subplots(figsize=(7, 6))
+    prevalence = (y_test == 1).sum() / len(y_test)
+    ax.axhline(prevalence, color="grey", linestyle="--",
+               label=f"Random (AP = {prevalence:.3f})")
+
+    for name, (Xb, yb, use_cw) in strategies.items():
+        model = LogisticRegression(**best, class_weight=use_cw).fit(Xb, yb)
+        scores = model.predict_proba(X_test_s)
+        recall, precision, area = _precision_recall_curve(y_test, scores)
+        ax.plot(recall, precision, label=f"{name} (AP = {area:.3f})")
+
+    ax.set_xlabel("Recall")
+    ax.set_ylabel("Precision")
+    ax.set_title("Logistic Regression — Precision-Recall Curves (Dropout Class)")
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.legend(loc="upper right")
+    plt.tight_layout()
+    out = RESULTS / "figures" / "lr_pr_curves.png"
+    plt.savefig(out, dpi=150)
+    plt.close()
+    print(f"Saved: {out}")
+
+
 if __name__ == "__main__":
     plot_imbalance_comparison()
+    plot_roc_curves()
+    plot_precision_recall_curves()
