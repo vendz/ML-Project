@@ -10,3 +10,4 @@ experiments/
 data/
 .DS_Store
 .claude
+.code-review-graph
