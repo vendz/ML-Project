@@ -1,63 +1,76 @@
 import numpy as np
-from shared.preprocessing import load_data, StandardScaler, SMOTE, random_undersample
-from shared.evaluation import cross_validate, classification_report, roc_auc, log_experiment
-from shared.config import RANDOM_SEED, CV_FOLDS
+from shared.preprocessing import load_data, StandardScaler
+from shared.evaluation import classification_report, roc_auc, log_experiment
+from shared.config import RANDOM_SEED
 from gradient_boosting.model import GradientBoostedTrees
 
 
+# Best configuration from Iter 8 experimentation
+BEST_PARAMS = dict(
+    learning_rate=0.05,
+    n_estimators=100,
+    max_depth=7,
+    subsample=0.8,
+    min_child_weight=5,
+    reg_alpha=0.5,
+    reg_lambda=0.5,
+    colsample_bytree=1.0,
+    smote_ratio=0.4,
+    n_clusters=3,
+    threshold=0.33,
+    random_state=RANDOM_SEED,
+)
+
+
 def run_all():
-    X_train, X_test, y_train, y_test, feature_names = load_data()
+    X_train, X_test, y_train, y_test, _ = load_data()
 
     scaler = StandardScaler().fit(X_train)
     X_train_s = scaler.transform(X_train)
     X_test_s  = scaler.transform(X_test)
 
-    sweep_lr = [0.01, 0.05, 0.1, 0.3]
-    sweep_rounds = [50, 100, 200, 500]
-    sweep_depth = [1, 3, 5, 7]
-    sweep_subsample = [0.5, 0.7, 1.0]
+    # --- Best model: final test evaluation ---
+    model = GradientBoostedTrees(**BEST_PARAMS).fit(X_train_s, y_train)
+    y_pred  = model.predict(X_test_s)
+    y_proba = model.predict_proba(X_test_s)
+    report  = classification_report(y_test, y_pred)
+    _, _, auc = roc_auc(y_test, y_proba)
+    log_experiment("gradient_boosting", BEST_PARAMS,
+                   {**report, "roc_auc": auc},
+                   extra={"sweep": "best_model", "split": "test"})
 
-    # Learning rate vs n_rounds (heatmap)
-    for lr in sweep_lr:
-        for rounds in sweep_rounds:
-            params = dict(n_rounds=rounds, learning_rate=lr, max_depth=3,
-                          subsample=1.0, patience=10, class_weight=True)
-            cv = cross_validate(GradientBoostedTrees, params, X_train_s, y_train, CV_FOLDS)
-            log_experiment("gradient_boosting", params, cv,
-                           extra={"sweep": "lr_vs_rounds"})
-
-    # Depth ablation
-    for depth in sweep_depth:
-        params = dict(n_rounds=100, learning_rate=0.1, max_depth=depth,
-                      subsample=1.0, patience=10, class_weight=True)
-        cv = cross_validate(GradientBoostedTrees, params, X_train_s, y_train, CV_FOLDS)
-        log_experiment("gradient_boosting", params, cv, extra={"sweep": "depth"})
-
-    # Subsample (stochastic GBT)
-    for ss in sweep_subsample:
-        params = dict(n_rounds=100, learning_rate=0.1, max_depth=3,
-                      subsample=ss, patience=10, class_weight=True)
-        cv = cross_validate(GradientBoostedTrees, params, X_train_s, y_train, CV_FOLDS)
-        log_experiment("gradient_boosting", params, cv, extra={"sweep": "subsample"})
-
-    # Class imbalance strategies
-    best_params = dict(n_rounds=100, learning_rate=0.1, max_depth=3,
-                       subsample=1.0, patience=10)
-
-    strategies = {
-        "none":         (X_train_s, y_train),
-        "class_weight": (X_train_s, y_train),
-        "smote":        SMOTE(random_state=RANDOM_SEED).fit_resample(X_train_s, y_train),
-        "undersample":  random_undersample(X_train_s, y_train, RANDOM_SEED),
-    }
-    for name, (Xb, yb) in strategies.items():
-        use_cw = name == "class_weight"
-        params = {**best_params, "class_weight": use_cw}
-        model = GradientBoostedTrees(**params).fit(Xb, yb)
-        y_pred = model.predict(X_test_s)
-        report = classification_report(y_test, y_pred)
+    # --- Threshold sweep ---
+    for t in np.arange(0.20, 0.61, 0.05):
+        t = round(float(t), 2)
+        params = {**BEST_PARAMS, "threshold": t}
+        m = GradientBoostedTrees(**params).fit(X_train_s, y_train)
+        report = classification_report(y_test, m.predict(X_test_s))
         log_experiment("gradient_boosting", params, report,
-                       extra={"imbalance_strategy": name, "split": "test"})
+                       extra={"sweep": "threshold"})
+
+    # --- Learning rate sweep ---
+    for lr in [0.01, 0.05, 0.1, 0.3]:
+        params = {**BEST_PARAMS, "learning_rate": lr}
+        m = GradientBoostedTrees(**params).fit(X_train_s, y_train)
+        report = classification_report(y_test, m.predict(X_test_s))
+        log_experiment("gradient_boosting", params, report,
+                       extra={"sweep": "learning_rate"})
+
+    # --- Depth sweep ---
+    for depth in [3, 5, 7]:
+        params = {**BEST_PARAMS, "max_depth": depth}
+        m = GradientBoostedTrees(**params).fit(X_train_s, y_train)
+        report = classification_report(y_test, m.predict(X_test_s))
+        log_experiment("gradient_boosting", params, report,
+                       extra={"sweep": "max_depth"})
+
+    # --- Subsample sweep ---
+    for ss in [0.5, 0.7, 0.8, 1.0]:
+        params = {**BEST_PARAMS, "subsample": ss}
+        m = GradientBoostedTrees(**params).fit(X_train_s, y_train)
+        report = classification_report(y_test, m.predict(X_test_s))
+        log_experiment("gradient_boosting", params, report,
+                       extra={"sweep": "subsample"})
 
 
 if __name__ == "__main__":

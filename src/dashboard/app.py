@@ -13,7 +13,7 @@ from logistic_regression.model import LogisticRegression
 from gradient_boosting.model import GradientBoostedTrees
 from neural_network.model import NeuralNetwork
 from dashboard.components.plots import (
-    plot_confusion_matrix, plot_roc, plot_loss_curve,
+    plot_confusion_matrix, plot_roc, plot_loss_curve, plot_feature_importance,
     plot_pr_curve, plot_dead_neurons, plot_confidence_histogram,
 )
 
@@ -49,14 +49,14 @@ if model_name == "Logistic Regression":
     model   = LogisticRegression(**params)
 
 elif model_name == "Gradient Boosted Trees":
-    lr      = st.sidebar.select_slider("Learning Rate", [0.01, 0.05, 0.1, 0.3], value=0.1)
-    rounds  = st.sidebar.slider("Boosting Rounds", 10, 500, 100, step=10)
-    depth   = st.sidebar.slider("Max Tree Depth", 1, 7, 3)
-    ss      = st.sidebar.slider("Subsample Rate", 0.5, 1.0, 1.0, step=0.1)
-    cw      = st.sidebar.checkbox("Class Weighting", value=True)
-    params  = dict(n_rounds=rounds, learning_rate=lr, max_depth=depth,
-                   subsample=ss, patience=10, class_weight=cw)
-    model   = GradientBoostedTrees(**params)
+    lr        = st.sidebar.select_slider("Learning Rate", [0.01, 0.05, 0.1, 0.3], value=0.05)
+    rounds    = st.sidebar.slider("Boosting Rounds", 10, 500, 100, step=10)
+    depth     = st.sidebar.slider("Max Tree Depth", 1, 8, 7)
+    ss        = st.sidebar.slider("Subsample Rate", 0.5, 1.0, 0.8, step=0.1)
+    threshold = st.sidebar.slider("Decision Threshold", 0.10, 0.90, 0.33, step=0.01)
+    params    = dict(learning_rate=lr, n_estimators=rounds, max_depth=depth,
+                     subsample=ss, threshold=threshold)
+    model     = GradientBoostedTrees(**params)
 
 else:  # Neural Network
     with st.sidebar.expander("Architecture", expanded=True):
@@ -197,13 +197,20 @@ if st.sidebar.button("Train & Evaluate"):
     st.subheader("Per-Class Results")
     st.json({k: v for k, v in report.items() if k not in ("macro_f1", "accuracy")})
 
-    if model_name == "Neural Network":
+    st.subheader("Confusion Matrix & ROC Curve")
+    pcol1, pcol2 = st.columns(2)
+    with pcol1:
         cm = confusion_matrix(y_test, y_pred)
-        c1, c2 = st.columns(2)
-        with c1:
-            st.pyplot(plot_confusion_matrix(cm))
-        with c2:
-            st.pyplot(plot_roc(fpr, tpr, auc))
+        st.pyplot(plot_confusion_matrix(cm))
+    with pcol2:
+        st.pyplot(plot_roc(fpr, tpr, auc))
+
+    if model_name == "Gradient Boosted Trees":
+        st.subheader("Feature Importance")
+        importances, aug_names = model.feature_importance(feature_names)
+        st.pyplot(plot_feature_importance(importances, aug_names))
+
+    if model_name == "Neural Network":
         st.session_state["nn_results"] = {
             "y_proba":      y_proba,
             "model":        model,
@@ -212,8 +219,6 @@ if st.sidebar.button("Train & Evaluate"):
             "pr_curve":     precision_recall_auc(y_test, y_proba),
             "layer_acts":   model.get_layer_activations(X_test_s),
         }
-    else:
-        st.info("Plotting components coming soon — add them in src/dashboard/components/plots.py")
 
 if model_name == "Neural Network" and "nn_results" in st.session_state:
     _r  = st.session_state["nn_results"]
@@ -248,9 +253,9 @@ if model_name == "Neural Network" and "nn_results" in st.session_state:
     _yt = (_yp >= _thresh).astype(int)
     _rt = classification_report(y_test, _yt)
     tc1, tc2, tc3, tc4 = st.columns(4)
-    tc1.metric("Precision (grad.)", f"{_rt['graduate']['precision']:.3f}")
-    tc2.metric("Recall (grad.)",    f"{_rt['graduate']['recall']:.3f}")
-    tc3.metric("F1 (grad.)",        f"{_rt['graduate']['f1']:.3f}")
+    tc1.metric("Precision (dropout)", f"{_rt['dropout']['precision']:.3f}")
+    tc2.metric("Recall (dropout)",    f"{_rt['dropout']['recall']:.3f}")
+    tc3.metric("F1 (dropout)",        f"{_rt['dropout']['f1']:.3f}")
     tc4.metric("Accuracy",          f"{_rt['accuracy']:.3f}")
 
     st.markdown("#### Model Behaviour")

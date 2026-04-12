@@ -14,6 +14,10 @@ def confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
 
 
 def classification_report(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
+    """
+    Returns per-class and macro precision, recall, F1, plus accuracy.
+    Classes: 0 = Enrolled, 1 = Dropout
+    """
     cm = confusion_matrix(y_true, y_pred)
     report = {}
     for cls in range(2):
