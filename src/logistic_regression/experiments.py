@@ -51,9 +51,13 @@ def run_all():
         cv = cross_validate(LogisticRegression, params, X_train_s, y_train, CV_FOLDS)
         log_experiment("logistic_regression", params, cv, extra={"sweep": "batch_size"})
 
-    # Class imbalance strategies (on best params)
-    best_params = dict(lr=0.01, lambda_=0.01, reg="l2", batch_size=32,
-                       max_epochs=1000, patience=10)
+    # Class imbalance strategies — two candidate configs to compare batch_size=32 vs SGD
+    # lr=0.1 is the clear LR sweep winner; l1/lambda_=0.001 wins reg sweep
+    # batch_size is deliberately kept open: 32 (stable) vs 1 (SGD, marginally best in sweep)
+    candidates = [
+        dict(lr=0.1, lambda_=0.001, reg="l1", batch_size=32, max_epochs=1000, patience=10),
+        dict(lr=0.1, lambda_=0.001, reg="l1", batch_size=1,  max_epochs=1000, patience=10),
+    ]
 
     strategies = {
         "none":          (X_train_s, y_train),
@@ -61,14 +65,16 @@ def run_all():
         "smote":         SMOTE(random_state=RANDOM_SEED).fit_resample(X_train_s, y_train),
         "undersample":   random_undersample(X_train_s, y_train, RANDOM_SEED),
     }
-    for name, (Xb, yb) in strategies.items():
-        use_cw = name == "class_weight"
-        params = {**best_params, "class_weight": use_cw}
-        model = LogisticRegression(**params).fit(Xb, yb)
-        y_pred = model.predict(X_test_s)
-        report = classification_report(y_test, y_pred)
-        log_experiment("logistic_regression", params, report,
-                       extra={"imbalance_strategy": name, "split": "test"})
+    for base_params in candidates:
+        for name, (Xb, yb) in strategies.items():
+            use_cw = name == "class_weight"
+            params = {**base_params, "class_weight": use_cw}
+            model = LogisticRegression(**params).fit(Xb, yb)
+            y_pred = model.predict(X_test_s)
+            report = classification_report(y_test, y_pred)
+            log_experiment("logistic_regression", params, report,
+                           extra={"imbalance_strategy": name, "split": "test",
+                                  "candidate_batch": base_params["batch_size"]})
 
 
 if __name__ == "__main__":
