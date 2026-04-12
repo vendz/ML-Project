@@ -198,7 +198,131 @@ def plot_precision_recall_curves():
     print(f"Saved: {out}")
 
 
+def plot_convergence_curves():
+    """
+    Epoch-level training loss convergence for each batch size configuration.
+    Uses the same params as the batch sweep in experiments.py.
+    Fits on the full training set (no CV split); reads model.loss_history_ after fit.
+
+    Note: loss_history_ records one loss value per epoch (aggregated across all
+    mini-batches), not per-update. One epoch contains vastly different numbers of
+    parameter updates for batch_size=1 vs None — the x-axis shows epochs, not
+    optimization effort.
+
+    Two panels: left zoomed to first 100 epochs to show early differences among
+    SGD/mini-batch configs; right shows the full range including full-batch.
+    """
+    from shared.preprocessing import load_data, StandardScaler
+    from logistic_regression.model import LogisticRegression
+
+    X_train, _, y_train, _, _ = load_data("raw/dataset.csv")
+    scaler = StandardScaler().fit(X_train)
+    X_train_s = scaler.transform(X_train)
+
+    base = dict(lr=0.01, lambda_=0.01, reg="l2",
+                max_epochs=1000, patience=10, class_weight=True)
+    configs = [
+        (1,    "SGD (batch=1)"),
+        (32,   "Mini-batch (batch=32)"),
+        (64,   "Mini-batch (batch=64)"),
+        (None, "Full-batch"),
+    ]
+
+    histories = []
+    for bs, label in configs:
+        model = LogisticRegression(**base, batch_size=bs).fit(X_train_s, y_train)
+        histories.append((label, model.loss_history_))
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+    fig.suptitle("Logistic Regression — Training Loss by Batch Size", fontsize=13)
+
+    for label, history in histories:
+        ax1.plot(history, label=label, alpha=0.85)
+        ax2.plot(history, alpha=0.85)
+
+    ax1.set_xlim(0, 100)
+    ax1.set_xlabel("Epoch")
+    ax1.set_ylabel("Training Loss (Cross-Entropy)")
+    ax1.set_title("Early Epochs (0–100)")
+    ax1.legend(loc="upper right", fontsize=8)
+
+    ax2.set_xlabel("Epoch")
+    ax2.set_title("Full Training Range")
+
+    plt.tight_layout()
+    out = RESULTS / "figures" / "lr_convergence_curves.png"
+    plt.savefig(out, dpi=150)
+    plt.close()
+    print(f"Saved: {out}")
+
+
+def plot_regularization_path():
+    """
+    Shows how the learned weight vector changes as lambda_ increases for L1, L2,
+    and Elastic Net regularization.
+
+    Left panel : L2 norm of w_ vs lambda (log scale) — overall shrinkage rate
+    Right panel: Fraction of near-zero coefficients (|w_i| < 1e-4) vs lambda —
+                 sparsity; directly shows L1's tendency to zero out weights
+
+    Elastic Net uses l1_ratio=0.5 to position it as a visible blend between L1 and L2.
+    Lambda grid matches the regularization sweep in experiments.py.
+    """
+    from shared.preprocessing import load_data, StandardScaler
+    from logistic_regression.model import LogisticRegression
+
+    X_train, _, y_train, _, _ = load_data("raw/dataset.csv")
+    scaler = StandardScaler().fit(X_train)
+    X_train_s = scaler.transform(X_train)
+
+    lambdas = [0.0001, 0.001, 0.01, 0.1, 1.0, 10.0]
+    # lr=0.01 matches the regularization sweep in experiments.py exactly,
+    # so this path directly visualizes the logged sweep results
+    base = dict(lr=0.01, batch_size=32, max_epochs=1000,
+                patience=10, class_weight=True)
+    reg_configs = [
+        ("l1",                          dict(reg="l1")),
+        ("l2",                          dict(reg="l2")),
+        ("elasticnet\n(l1_ratio=0.5)",  dict(reg="elasticnet", l1_ratio=0.5)),
+    ]
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5))
+    fig.suptitle("Logistic Regression — Regularization Path", fontsize=13)
+
+    for label, reg_kwargs in reg_configs:
+        norms, sparsities = [], []
+        for lam in lambdas:
+            model = LogisticRegression(**base, lambda_=lam, **reg_kwargs).fit(
+                X_train_s, y_train)
+            w = model.w_
+            norms.append(float(np.linalg.norm(w)))
+            sparsities.append(float((np.abs(w) < 1e-4).mean()))
+        ax1.plot(lambdas, norms,      marker="o", label=label)
+        ax2.plot(lambdas, sparsities, marker="o", label=label)
+
+    ax1.set_xscale("log")
+    ax1.set_xlabel("lambda_ (log scale)")
+    ax1.set_ylabel("||w||₂  (L2 norm of weights)")
+    ax1.set_title("Weight Shrinkage")
+    ax1.legend()
+
+    ax2.set_xscale("log")
+    ax2.set_xlabel("lambda_ (log scale)")
+    ax2.set_ylabel("Fraction of |wᵢ| < 1e-4")
+    ax2.set_title("Sparsity (Near-Zero Coefficients)")
+    ax2.set_ylim(0, 1)
+    ax2.legend()
+
+    plt.tight_layout()
+    out = RESULTS / "figures" / "lr_regularization_path.png"
+    plt.savefig(out, dpi=150)
+    plt.close()
+    print(f"Saved: {out}")
+
+
 if __name__ == "__main__":
     plot_imbalance_comparison()
     plot_roc_curves()
     plot_precision_recall_curves()
+    plot_convergence_curves()
+    plot_regularization_path()
