@@ -13,7 +13,7 @@ from logistic_regression.model import LogisticRegression
 
 
 def run_all():
-    X_train, X_test, y_train, y_test, feature_names = load_data()
+    X_train, X_test, y_train, y_test, feature_names = load_data("raw/dataset.csv")
 
     scaler = StandardScaler().fit(X_train)
     X_train_s = scaler.transform(X_train)
@@ -23,6 +23,7 @@ def run_all():
     sweep_lambda = [0.0001, 0.001, 0.01, 0.1, 1.0, 10.0]
     sweep_reg = ["l2", "l1", "elasticnet"]
     sweep_batch = [1, 32, 64, None]
+    sweep_l1_ratio = [0.1, 0.25, 0.5, 0.75, 0.9]
 
     # Learning rate sweep
     for lr in sweep_lr:
@@ -34,10 +35,14 @@ def run_all():
     # Regularization strength sweep
     for lam in sweep_lambda:
         for reg in sweep_reg:
-            params = dict(lr=0.01, lambda_=lam, reg=reg, batch_size=32,
-                          max_epochs=1000, patience=10, class_weight=True)
-            cv = cross_validate(LogisticRegression, params, X_train_s, y_train, CV_FOLDS)
-            log_experiment("logistic_regression", params, cv, extra={"sweep": "regularization"})
+            ratios = sweep_l1_ratio if reg == "elasticnet" else [0.5]
+            for l1_ratio in ratios:
+                params = dict(lr=0.01, lambda_=lam, reg=reg,
+                              batch_size=32, max_epochs=1000, patience=10, class_weight=True)
+                if reg == "elasticnet":
+                    params["l1_ratio"] = l1_ratio
+                cv = cross_validate(LogisticRegression, params, X_train_s, y_train, CV_FOLDS)
+                log_experiment("logistic_regression", params, cv, extra={"sweep": "regularization"})
 
     # Batch size sweep (convergence analysis)
     for bs in sweep_batch:
@@ -46,9 +51,13 @@ def run_all():
         cv = cross_validate(LogisticRegression, params, X_train_s, y_train, CV_FOLDS)
         log_experiment("logistic_regression", params, cv, extra={"sweep": "batch_size"})
 
-    # Class imbalance strategies (on best params)
-    best_params = dict(lr=0.01, lambda_=0.01, reg="l2", batch_size=32,
-                       max_epochs=1000, patience=10)
+    # Class imbalance strategies — two candidate configs to compare batch_size=32 vs SGD
+    # lr=0.1 is the clear LR sweep winner; l1/lambda_=0.001 wins reg sweep
+    # batch_size is deliberately kept open: 32 (stable) vs 1 (SGD, marginally best in sweep)
+    candidates = [
+        dict(lr=0.1, lambda_=0.001, reg="l1", batch_size=32, max_epochs=1000, patience=10),
+        dict(lr=0.1, lambda_=0.001, reg="l1", batch_size=1,  max_epochs=1000, patience=10),
+    ]
 
     strategies = {
         "none":          (X_train_s, y_train),
@@ -56,14 +65,16 @@ def run_all():
         "smote":         SMOTE(random_state=RANDOM_SEED).fit_resample(X_train_s, y_train),
         "undersample":   random_undersample(X_train_s, y_train, RANDOM_SEED),
     }
-    for name, (Xb, yb) in strategies.items():
-        use_cw = name == "class_weight"
-        params = {**best_params, "class_weight": use_cw}
-        model = LogisticRegression(**params).fit(Xb, yb)
-        y_pred = model.predict(X_test_s)
-        report = classification_report(y_test, y_pred)
-        log_experiment("logistic_regression", params, report,
-                       extra={"imbalance_strategy": name, "split": "test"})
+    for base_params in candidates:
+        for name, (Xb, yb) in strategies.items():
+            use_cw = name == "class_weight"
+            params = {**base_params, "class_weight": use_cw}
+            model = LogisticRegression(**params).fit(Xb, yb)
+            y_pred = model.predict(X_test_s)
+            report = classification_report(y_test, y_pred)
+            log_experiment("logistic_regression", params, report,
+                           extra={"imbalance_strategy": name, "split": "test",
+                                  "candidate_batch": base_params["batch_size"]})
 
 
 if __name__ == "__main__":
