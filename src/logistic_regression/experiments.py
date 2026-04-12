@@ -13,7 +13,7 @@ from logistic_regression.model import LogisticRegression
 
 
 def run_all():
-    X_train, X_test, y_train, y_test, feature_names = load_data()
+    X_train, X_test, y_train, y_test, feature_names = load_data("raw/dataset.csv")
 
     scaler = StandardScaler().fit(X_train)
     X_train_s = scaler.transform(X_train)
@@ -23,6 +23,7 @@ def run_all():
     sweep_lambda = [0.0001, 0.001, 0.01, 0.1, 1.0, 10.0]
     sweep_reg = ["l2", "l1", "elasticnet"]
     sweep_batch = [1, 32, 64, None]
+    sweep_l1_ratio = [0.1, 0.25, 0.5, 0.75, 0.9]
 
     # Learning rate sweep
     for lr in sweep_lr:
@@ -34,10 +35,14 @@ def run_all():
     # Regularization strength sweep
     for lam in sweep_lambda:
         for reg in sweep_reg:
-            params = dict(lr=0.01, lambda_=lam, reg=reg, batch_size=32,
-                          max_epochs=1000, patience=10, class_weight=True)
-            cv = cross_validate(LogisticRegression, params, X_train_s, y_train, CV_FOLDS)
-            log_experiment("logistic_regression", params, cv, extra={"sweep": "regularization"})
+            ratios = sweep_l1_ratio if reg == "elasticnet" else [0.5]
+            for l1_ratio in ratios:
+                params = dict(lr=0.01, lambda_=lam, reg=reg,
+                              batch_size=32, max_epochs=1000, patience=10, class_weight=True)
+                if reg == "elasticnet":
+                    params["l1_ratio"] = l1_ratio
+                cv = cross_validate(LogisticRegression, params, X_train_s, y_train, CV_FOLDS)
+                log_experiment("logistic_regression", params, cv, extra={"sweep": "regularization"})
 
     # Batch size sweep (convergence analysis)
     for bs in sweep_batch:
