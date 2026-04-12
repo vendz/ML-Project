@@ -1,9 +1,3 @@
-"""
-Shared evaluation utilities.
-
-All metric functions work on (y_true, y_pred) or (y_true, y_proba)
-and return plain dicts/arrays so results are easy to log or plot.
-"""
 import numpy as np
 import json
 from pathlib import Path
@@ -20,10 +14,6 @@ def confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
 
 
 def classification_report(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
-    """
-    Returns per-class and macro precision, recall, F1, plus accuracy.
-    Classes: 0 = Enrolled, 1 = Graduate
-    """
     cm = confusion_matrix(y_true, y_pred)
     report = {}
     for cls in range(2):
@@ -60,12 +50,28 @@ def roc_auc(y_true: np.ndarray, y_proba: np.ndarray) -> tuple[np.ndarray, np.nda
     tpr_list.append(1.0)
     fpr = np.array(fpr_list)
     tpr = np.array(tpr_list)
-    auc = float(np.trapz(tpr, fpr))
+    auc = float(np.trapezoid(tpr, fpr))
     return fpr, tpr, auc
 
 
+def precision_recall_auc(
+    y_true: np.ndarray, y_proba: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, float]:
+    thresholds = np.sort(np.unique(y_proba))[::-1]
+    pos_mask   = y_true == 1
+    pred_matrix = y_proba[np.newaxis, :] >= thresholds[:, np.newaxis]
+    tp = pred_matrix[:,  pos_mask].sum(axis=1).astype(float)
+    fp = pred_matrix[:, ~pos_mask].sum(axis=1).astype(float)
+    fn = (~pred_matrix)[:, pos_mask].sum(axis=1).astype(float)
+    precisions = np.where(tp + fp > 0, tp / (tp + fp), 1.0)
+    recalls    = np.where(tp + fn > 0, tp / (tp + fn), 0.0)
+    recalls    = np.concatenate([[0.0], recalls])
+    precisions = np.concatenate([[1.0], precisions])
+    auc_pr     = float(np.trapezoid(precisions, recalls))
+    return recalls, precisions, auc_pr
+
+
 def stratified_kfold_indices(y: np.ndarray, k: int = 5, random_state: int = 42):
-    """Yield (train_idx, val_idx) for k stratified folds."""
     rng = np.random.default_rng(random_state)
     classes = np.unique(y)
     class_indices = {c: rng.permutation(np.where(y == c)[0]) for c in classes}
