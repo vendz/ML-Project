@@ -1,10 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
-
 
 def plot_confusion_matrix(cm: np.ndarray,
-                          labels: list[str] = ["Enrolled", "Graduate"]) -> plt.Figure:
+                          labels: list[str] = ["Enrolled", "Dropout"]) -> plt.Figure:
     fig, ax = plt.subplots()
     im = ax.imshow(cm, cmap="Blues")
     ax.set_xticks([0, 1]); ax.set_xticklabels(labels)
@@ -71,24 +69,6 @@ def plot_pr_curve(recalls: np.ndarray, precisions: np.ndarray,
     return fig
 
 
-def plot_weight_distributions(weights: list[np.ndarray],
-                               labels: list[str]) -> plt.Figure:
-    n = len(weights)
-    fig, axes = plt.subplots(1, n, figsize=(3.5 * n, 3))
-    if n == 1:
-        axes = [axes]
-    for ax, W, label in zip(axes, weights, labels):
-        ax.hist(W.ravel(), bins=40, alpha=0.85, edgecolor="none")
-        ax.set_title(label, fontsize=8)
-        ax.set_xlabel("Value", fontsize=7)
-        ax.tick_params(labelsize=7)
-        ax.yaxis.set_major_formatter(ticker.FuncFormatter(
-            lambda x, _: f"{int(x/1000)}k" if x >= 1000 else str(int(x))
-        ))
-    fig.suptitle("Weight Distributions", fontsize=9)
-    fig.tight_layout()
-    return fig
-
 
 def plot_dead_neurons(labels: list[str], pcts: list[float],
                       act_names: list[str]) -> plt.Figure:
@@ -122,10 +102,10 @@ def plot_confidence_histogram(y_true: np.ndarray,
     ax.hist(y_proba[y_true == 0], bins=bins, alpha=0.6,
             label="Enrolled (true 0)", color="#3498db")
     ax.hist(y_proba[y_true == 1], bins=bins, alpha=0.6,
-            label="Graduate (true 1)", color="#e74c3c")
+            label="Dropout (true 1)", color="#e74c3c")
     ax.axvline(0.5, linestyle="--", color="black",
                linewidth=0.9, label="Threshold = 0.5")
-    ax.set_xlabel("P(Graduate)")
+    ax.set_xlabel("P(Dropout)")
     ax.set_ylabel("Count")
     ax.set_title("Prediction Confidence by True Class")
     ax.legend(fontsize=8)
@@ -133,18 +113,3 @@ def plot_confidence_histogram(y_true: np.ndarray,
     return fig
 
 
-def plot_lr_schedule(lr_values: list[float]) -> plt.Figure:
-    fig, ax = plt.subplots()
-    ax.plot(lr_values)
-    ax.set_xlabel("Epoch")
-    ax.set_ylabel("Learning Rate")
-    ax.set_title("LR Schedule (actual epochs run)")
-    _max_lr = max(lr_values) if lr_values else 1.0
-    _min_lr = min(lr_values) if lr_values else 0.0
-    if _max_lr == _min_lr:
-        ax.set_ylim([0, _max_lr * 2 if _max_lr > 0 else 1.0])
-    else:
-        ax.set_ylim([0, _max_lr * 1.1])
-    ax.yaxis.set_major_formatter(ticker.FormatStrFormatter("%.2e"))
-    fig.tight_layout()
-    return fig

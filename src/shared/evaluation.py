@@ -24,7 +24,7 @@ def classification_report(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
         recall    = tp / (tp + fn) if (tp + fn) > 0 else 0.0
         f1        = (2 * precision * recall / (precision + recall)
                      if (precision + recall) > 0 else 0.0)
-        label = "enrolled" if cls == 0 else "graduate"
+        label = "enrolled" if cls == 0 else "dropout"
         report[label] = {"precision": precision, "recall": recall, "f1": f1,
                          "support": int(cm[cls, :].sum())}
 
