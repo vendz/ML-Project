@@ -21,41 +21,41 @@ def run_all():
 
     # Architecture (depth)
     for hidden in sweep_depth:
-        params = dict(hidden_dims=hidden, lr=0.01, lambda_=0.001, dropout_rate=0.0,
+        params = dict(hidden_dims=hidden, lr=0.01, l2_lambda=0.001, dropout_rate=0.0,
                       batch_size=32, max_epochs=500, patience=10, class_weight=True)
         cv = cross_validate(NeuralNetwork, params, X_train_s, y_train, CV_FOLDS)
         log_experiment("neural_network", params, cv, extra={"sweep": "depth"})
 
     # Width (single hidden layer)
     for width in sweep_width:
-        params = dict(hidden_dims=[width], lr=0.01, lambda_=0.001, dropout_rate=0.0,
+        params = dict(hidden_dims=[width], lr=0.01, l2_lambda=0.001, dropout_rate=0.0,
                       batch_size=32, max_epochs=500, patience=10, class_weight=True)
         cv = cross_validate(NeuralNetwork, params, X_train_s, y_train, CV_FOLDS)
         log_experiment("neural_network", params, cv, extra={"sweep": "width"})
 
     # Learning rate
     for lr in sweep_lr:
-        params = dict(hidden_dims=[64], lr=lr, lambda_=0.001, dropout_rate=0.0,
+        params = dict(hidden_dims=[64], lr=lr, l2_lambda=0.001, dropout_rate=0.0,
                       batch_size=32, max_epochs=500, patience=10, class_weight=True)
         cv = cross_validate(NeuralNetwork, params, X_train_s, y_train, CV_FOLDS)
         log_experiment("neural_network", params, cv, extra={"sweep": "lr"})
 
     # L2 regularization
     for lam in sweep_lambda:
-        params = dict(hidden_dims=[64], lr=0.01, lambda_=lam, dropout_rate=0.0,
+        params = dict(hidden_dims=[64], lr=0.01, l2_lambda=lam, dropout_rate=0.0,
                       batch_size=32, max_epochs=500, patience=10, class_weight=True)
         cv = cross_validate(NeuralNetwork, params, X_train_s, y_train, CV_FOLDS)
         log_experiment("neural_network", params, cv, extra={"sweep": "lambda"})
 
     # Dropout
     for dr in sweep_dropout:
-        params = dict(hidden_dims=[64], lr=0.01, lambda_=0.001, dropout_rate=dr,
+        params = dict(hidden_dims=[64], lr=0.01, l2_lambda=0.001, dropout_rate=dr,
                       batch_size=32, max_epochs=500, patience=10, class_weight=True)
         cv = cross_validate(NeuralNetwork, params, X_train_s, y_train, CV_FOLDS)
         log_experiment("neural_network", params, cv, extra={"sweep": "dropout"})
 
     # Class imbalance strategies
-    best_params = dict(hidden_dims=[64], lr=0.01, lambda_=0.001, dropout_rate=0.2,
+    best_params = dict(hidden_dims=[64], lr=0.01, l2_lambda=0.001, dropout_rate=0.2,
                        batch_size=32, max_epochs=500, patience=10)
 
     strategies = {
