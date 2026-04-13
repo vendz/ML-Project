@@ -210,6 +210,13 @@ if st.sidebar.button("Train & Evaluate"):
         importances, aug_names = model.feature_importance(feature_names)
         st.pyplot(plot_feature_importance(importances, aug_names))
 
+        st.subheader("Prediction Confidence")
+        fig = plot_confidence_histogram(y_test, y_proba)
+        st.pyplot(fig)
+        plt.close(fig)
+
+        st.session_state["gbt_results"] = {"y_proba": y_proba}
+
     if model_name == "Neural Network":
         st.session_state["nn_results"] = {
             "y_proba":      y_proba,
@@ -219,6 +226,20 @@ if st.sidebar.button("Train & Evaluate"):
             "pr_curve":     precision_recall_auc(y_test, y_proba),
             "layer_acts":   model.get_layer_activations(X_test_s),
         }
+
+if model_name == "Gradient Boosted Trees" and "gbt_results" in st.session_state:
+    _gbt_proba = st.session_state["gbt_results"]["y_proba"]
+    st.markdown("---")
+    st.markdown("#### Decision Threshold Explorer")
+    st.caption("Adjust the threshold to see how precision, recall, and F1 change without retraining.")
+    _gbt_thresh = st.slider("Threshold", 0.01, 0.99, 0.33, step=0.01, key="gbt_thresh")
+    _gbt_pred = (_gbt_proba >= _gbt_thresh).astype(int)
+    _gbt_report = classification_report(y_test, _gbt_pred)
+    tc1, tc2, tc3, tc4 = st.columns(4)
+    tc1.metric("Precision (dropout)", f"{_gbt_report['dropout']['precision']:.3f}")
+    tc2.metric("Recall (dropout)",    f"{_gbt_report['dropout']['recall']:.3f}")
+    tc3.metric("F1 (dropout)",        f"{_gbt_report['dropout']['f1']:.3f}")
+    tc4.metric("Accuracy",            f"{_gbt_report['accuracy']:.3f}")
 
 if model_name == "Neural Network" and "nn_results" in st.session_state:
     _r  = st.session_state["nn_results"]
