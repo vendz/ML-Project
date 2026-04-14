@@ -19,16 +19,16 @@ This project is not about finding the single best model. It is a **deep comparat
 ### 1.3 Key Highlights & Differentiators
 
 - A **Streamlit interactive dashboard** lets users manipulate hyperparameters via sliders and see results update visually in real time.
-- A **"Pin & Compare" system** allows side-by-side comparison of any configurations.
-- Advanced analyses (bias-variance decomposition, calibration, statistical significance testing, feature interactions, misclassification analysis)
-- Every experiment is logged automatically, producing the ablation tables for the final report directly from the dashboard.
+- The neural network panel includes **live training loss curves**, **neuron health analysis** (dead/saturated neuron detection), and **automated recommendations** for overfitting, convergence, and architecture issues.
+- The gradient boosted trees panel includes **post-training threshold exploration** and **confidence histograms** — adjusting the decision threshold updates metrics without retraining.
+- Every experiment is logged automatically to JSONL, producing reproducible records of all ablation runs.
 
 ### 1.4 Division of Work
 
-- **Vandit Vasa:** Lead the implementation of **Neural Network**, including architecture design, activation functions, backpropagation, regularization, and hyperparameter tuning. Also take primary ownership of the preprocessing components most tied to this model, especially feature scaling, PCA, and the standardized vs raw / PCA ablation studies.
-- **Brandon Tran:** Lead the implementation of **Multinomial Logistic Regression**, including optimization (full-batch, mini-batch, SGD), regularization (L1, L2, Elastic Net), convergence analysis, and probability outputs. Also own the class imbalance experiments tied to model performance, including class weighting comparisons, SMOTE, and undersampling.
-- **Shivnarain Sarin:** Lead the implementation of **Gradient Boosted Trees**, including split criteria, residual fitting, learning rate scheduling, feature importance analysis, and the Streamlit dashboard / experiment logging pipeline.
-- **Shared responsibilities:** All three members will collaborate on dataset understanding, evaluation metrics, cross-validation, statistical significance testing, final error analysis, and writing the final report/presentation. Final model comparison, interpretation of results, and polishing the narrative of the project will be done jointly so that every member can speak to both the implementation and the experimental findings.
+- **Vandit Vasa:** Lead the implementation of **Neural Network**, including architecture design, multiple activation functions (ReLU, Leaky ReLU, Tanh, Sigmoid), backpropagation from scratch, Adam and SGD+momentum optimizers, regularization (L1, L2, dropout), learning rate decay schedules, and hyperparameter tuning.
+- **Brandon Tran:** Lead the implementation of **Logistic Regression**, including optimization (full-batch, mini-batch, SGD), regularization (L1 via proximal gradient, L2, Elastic Net), convergence analysis, class imbalance experiments (class weighting, SMOTE, undersampling), and probability-based evaluation (ROC, PR curves).
+- **Shivnarain Sarin:** Lead the implementation of **Gradient Boosted Trees**, including feature augmentation (KMeans clustering, PCA pseudo-features, centroid distances), imbalance handling (partial SMOTE + Tomek link cleaning), threshold tuning, and the Streamlit dashboard with interactive analysis panels for all three models.
+- **Shared responsibilities:** All three members collaborated on dataset understanding, evaluation metrics, cross-validation, final error analysis, and writing the final report/presentation. The shared infrastructure (`src/shared/`) — preprocessing, evaluation, configuration — was maintained jointly.
 
 ## 2. Dataset
 
@@ -52,7 +52,7 @@ UCI Machine Learning Repository / Kaggle: "Predict Students' Dropout and Academi
 
 ### 2.3 Feature Groups
 
-Features are organized into four logical groups. This grouping is critical for the feature subset ablation experiments.
+Features are organized into four logical groups.
 
 **Academic Features (5):**
 GPA, Semester_GPA, CGPA, Semester, Department. These capture the student's academic performance and progression through the program.
@@ -75,7 +75,7 @@ Internet_Access, Scholarship. These capture whether the student has the material
 
 ## 3. Models: Theory, Implementation & Experiments
 
-### 3.1 Multinomial Logistic Regression
+### 3.1 Logistic Regression
 
 **Owner: Brandon Tran**
 
@@ -97,28 +97,37 @@ where R(w) is the regularization term.
 
 **Implementation Details:**
 
-- Sigmoid computation must clip logits to avoid overflow in exp.
+- Sigmoid computation clips logits to [-500, 500] to avoid overflow in exp.
 - Weight initialization: Xavier initialization (normal with std = sqrt(2 / (n_features + 1))).
-- Support three optimizers: full-batch gradient descent, mini-batch SGD, and pure SGD (batch_size=1).
-- Support three regularization modes: L2 (Ridge), L1 (Lasso via proximal gradient), and Elastic Net.
-- Class weighting: multiply each sample's loss contribution by (N / (n_classes \* n_k)) where n_k is the count of that sample's class. This upweights minority classes.
-- Track and return the loss at every epoch for convergence plotting.
+- Three optimizer modes: full-batch gradient descent, mini-batch SGD, and pure SGD (batch_size=1).
+- Three regularization modes: L2 (Ridge, in-gradient), L1 (Lasso via proximal soft-thresholding), and Elastic Net (combined L2 in-gradient + L1 proximal, mixed via l1_ratio).
+- Class weighting: multiply each sample's loss contribution by (N / (n_classes * n_k)) where n_k is the count of that sample's class.
+- Internal stratified 85/15 train/validation split for early stopping with best-weight restoration.
+- Loss tracked at every epoch for convergence plotting.
 
-**Hyperparameter Experiments:**
+**Hyperparameter Experiments (57 total runs):**
 
-| Hyperparameter                   | Values to Test                                      | What It Demonstrates                                    |
-| -------------------------------- | --------------------------------------------------- | ------------------------------------------------------- |
-| Learning Rate                    | 0.001, 0.01, 0.1                                    | Too high diverges, too low converges slowly             |
-| Regularization Strength (lambda) | 0.0001, 0.001, 0.01, 0.1, 1.0, 10.0                 | Bias-variance tradeoff; underfitting at high lambda     |
-| Regularization Type              | L2, L1, Elastic Net (alpha=0.5)                     | L1 produces sparse weights (implicit feature selection) |
-| Batch Size                       | 1 (SGD), 32, 64, full-batch                         | Noise vs. convergence speed tradeoff                    |
-| Max Epochs                       | 1000 (with early stopping on val loss, patience=10) | Prevents overfitting                                    |
+| Hyperparameter                   | Values Tested                                        | Method | What It Demonstrates                                    |
+| -------------------------------- | ---------------------------------------------------- | ------ | ------------------------------------------------------- |
+| Learning Rate                    | 0.001, 0.01, 0.1                                     | 5-fold CV | Too high diverges, too low converges slowly             |
+| Regularization Strength (lambda) | 0.0001, 0.001, 0.01, 0.1, 1.0, 10.0                 | 5-fold CV | Bias-variance tradeoff; underfitting at high lambda     |
+| Regularization Type              | L2, L1, Elastic Net (5 l1_ratios for EN)             | 5-fold CV | L1 produces sparse weights (implicit feature selection) |
+| Batch Size                       | 1 (SGD), 32, 64, full-batch                          | 5-fold CV | Noise vs. convergence speed tradeoff                    |
+| Class Imbalance Strategy         | none, class_weight, SMOTE, undersample (×2 candidates) | Test set | Accuracy paradox; recall vs. F1 tradeoff               |
 
-**Unique Analyses for This Model:**
+**Unique Analyses:**
 
-- Convergence curves: overlay loss vs. epoch for all batch sizes on one plot.
-- Regularization path: plot magnitude of each weight coefficient as lambda varies from 0.0001 to 10. This shows which features get zeroed out first under L1.
-- Inspect learned coefficients to see which features the linear model relies on most.
+- Convergence curves: two-panel layout (early epochs + full range) overlaying loss vs. epoch for all batch sizes. Demonstrates that SGD is noisier and stops earlier (patience exhausted by validation wobble), mini-batch converges quickly and smoothly, full-batch is slowest per epoch.
+- Regularization path: two-panel figure showing weight L2 norm and sparsity fraction vs. lambda for L1, L2, and Elastic Net. Demonstrates L1 sparsity promotion, L2 smooth shrinkage, and Elastic Net interpolation.
+- ROC and PR curves: four imbalance strategies compared. ROC curves cluster tightly (AUC 0.817–0.821), showing similar ranking quality; PR curves reveal more separation and are more relevant for the imbalanced task.
+- Imbalance comparison bar chart: makes the accuracy paradox visually explicit — `none` wins on macro F1 and accuracy but catches only 43.5% of actual dropouts.
+
+**Key Findings:**
+
+- lr=0.1 wins clearly (well-conditioned loss surface)
+- L1, lambda=0.001 is best regularization, but top 6 configs within 0.0005 F1 (dataset prefers weak regularization)
+- batch_size=1 won CV but batch_size=32 dominated on test set across all imbalance strategies (CV variance artifact)
+- class_weight is the best compromise for dropout detection; undersample maximizes recall
 
 ---
 
@@ -134,44 +143,31 @@ Gradient Boosting builds an additive model in a forward stage-wise manner. At ea
 r_i = y_i - p_i
 ```
 
-where y_i is the binary label and p_i is the current model's predicted probability. At each round, one regression tree is fit to these residuals.
-
-The update rule is:
-
-```
-F^(t)(x) = F^(t-1)(x) + learning_rate * h^t(x)
-```
-
-where h^t is the weak learner fit to the residuals at round t.
+where y_i is the binary label and p_i is the current model's predicted probability.
 
 **Implementation Details:**
 
-- Initialize F^(0) to the log-odds of the positive class prior.
-- At each boosting round:
-  1. Compute current probabilities via sigmoid: p_i = 1 / (1 + exp(-F(x_i))).
-  2. Compute residuals r_i = y_i - p_i.
-  3. Fit a regression tree (using MSE on the residuals).
-  4. Leaf values: for each leaf, use the Newton-Raphson step: sum(residuals) / sum(p_i * (1 - p_i)) for that leaf's samples. This is the optimal leaf weight under the second-order approximation.
-  5. Update: F += learning_rate * tree predictions.
-- Early stopping: after each round, compute validation loss. If it has not improved for `patience` rounds, stop and revert to the best round.
-- Subsampling: optionally train each round's trees on a random fraction of the training data (stochastic gradient boosting).
+- Wraps XGBoost's `XGBClassifier` with a custom feature-augmentation pipeline.
+- Feature augmentation (`_augment()`): appends KMeans cluster ID, PCA components (95% variance), and centroid distances to the scaled input — expands 18 features to ~35.
+- Imbalance handling built into `fit()`: partial SMOTE (configurable `smote_ratio`, default 0.4) followed by Tomek link cleaning, applied in the augmented feature space. Uses imblearn's SMOTE and TomekLinks (not the shared custom SMOTE).
+- Decision threshold tuned to 0.33 (below the default 0.5) to improve minority-class recall.
+- Best configuration from iterative experimentation (Iter 8): learning_rate=0.05, n_estimators=100, max_depth=7, subsample=0.8, min_child_weight=5, reg_alpha=0.5, reg_lambda=0.5.
 
 **Hyperparameter Experiments:**
 
-| Hyperparameter             | Values to Test               | What It Demonstrates                                                |
-| -------------------------- | ---------------------------- | ------------------------------------------------------------------- |
-| Learning Rate (shrinkage)  | 0.01, 0.05, 0.1, 0.3         | Lower = more rounds needed but often better generalization          |
-| Number of Rounds           | 50, 100, 200, 500            | Shows the learning rate / n_rounds tradeoff                         |
-| Max Depth of Weak Learners | 1 (stumps), 3, 5, 7          | Depth 1 = purely additive model; higher depth captures interactions |
-| Subsample Rate             | 0.5, 0.7, 1.0                | Stochastic boosting; regularization effect                          |
-| Early Stopping Patience    | 10 rounds on validation loss | Prevents overfitting; shows optimal stopping point                  |
+| Hyperparameter             | Values Tested                | Method   | What It Demonstrates                                                |
+| -------------------------- | ---------------------------- | -------- | ------------------------------------------------------------------- |
+| Decision Threshold         | 0.20–0.60 (step 0.05)       | Test set | Precision-recall tradeoff for minority class                        |
+| Learning Rate (shrinkage)  | 0.01, 0.05, 0.1, 0.3        | Test set | Lower = more rounds needed but often better generalization          |
+| Max Depth of Weak Learners | 3, 5, 7                      | Test set | Higher depth captures interactions                                  |
+| Subsample Rate             | 0.5, 0.7, 0.8, 1.0          | Test set | Stochastic boosting; regularization effect                          |
 
-**Unique Analyses for This Model:**
+**Unique Analyses:**
 
-- Learning rate vs. n_rounds tradeoff: create a heatmap where x-axis is learning rate, y-axis is n_rounds, and cell color is validation F1. This directly shows the classic relationship: lower learning rates need more rounds but reach higher performance.
-- Staged prediction: plot validation loss after each boosting round for multiple learning rates on the same graph. Shows how faster learners overfit earlier.
-- Feature importance: total gain (sum of impurity improvements) across all trees and all rounds per feature.
-- Depth ablation: compare stumps (depth=1, purely additive) vs. depth=3 (captures pairwise interactions) vs. depth=5 (captures higher-order interactions). If depth=1 performs nearly as well as depth=5, the problem is mostly additive.
+- Feature importance: XGBoost gain-based importances across all ~35 augmented features, showing which original features and which engineered features (cluster IDs, PCA components, centroid distances) contribute most.
+- Threshold sensitivity: how precision, recall, and F1 for the dropout class change as the decision threshold varies from 0.20 to 0.60 — justifies the 0.33 choice.
+- Confidence histogram: predicted probability distributions separated by true class, showing model calibration.
+- SHAP summary plot: feature-level contribution analysis.
 
 ---
 
@@ -185,41 +181,42 @@ A feedforward neural network learns a hierarchical representation of the input b
 
 **Implementation Details:**
 
-- Architecture: fully connected layers with configurable depth and width.
-- Activation functions: ReLU (hidden layers), Sigmoid (output layer).
-- Weight initialization: Xavier/Glorot initialization to prevent vanishing/exploding gradients.
-- Backpropagation: compute gradients analytically using the chain rule; no autograd libraries.
-- Optimizers: mini-batch SGD with optional momentum.
-- Regularization: L2 weight decay (applied to all weight matrices, not biases); dropout (randomly zero out hidden units during training with probability p).
+- Architecture: fully connected layers with configurable depth and width via `hidden_dims` list.
+- Activation functions: ReLU, Leaky ReLU (configurable alpha), Tanh, Sigmoid — per-layer configurable.
+- Weight initialization: Xavier/Glorot or He initialization (selectable).
+- Backpropagation: gradients computed analytically using the chain rule; no autograd libraries.
+- Optimizers: Adam (with bias correction, configurable beta1/beta2) and SGD with momentum.
+- Learning rate decay: step decay and exponential decay schedules.
+- Regularization: combined L1 + L2 weight penalty (applied in gradient); inverted dropout during training.
 - Early stopping: monitor validation loss; stop if no improvement for `patience` epochs and revert to best weights.
-- Class weighting: multiply each sample's loss contribution by (N / (n_classes * n_k)) to upweight minority classes.
-- Track training and validation loss at every epoch for convergence plotting.
+- Class weighting: multiply each sample's loss contribution by (N / (n_classes * n_k)).
+- `fit()` accepts optional `X_val`/`y_val` and `epoch_callback` for live loss plotting in the dashboard.
+- `get_layer_activations(X)`: returns per-layer post-activation outputs for neuron health analysis.
 
 **Hyperparameter Experiments:**
 
-| Hyperparameter        | Values to Test               | What It Demonstrates                                        |
-| --------------------- | ---------------------------- | ----------------------------------------------------------- |
-| Hidden Layer Depth    | 1, 2, 3 layers               | Deeper networks capture more complex interactions           |
-| Hidden Layer Width    | 32, 64, 128, 256 units       | Wider layers increase capacity; risk of overfitting         |
-| Learning Rate         | 0.001, 0.01, 0.1             | Too high diverges; too low converges slowly                 |
-| L2 Regularization (λ) | 0.0001, 0.001, 0.01, 0.1     | Bias-variance tradeoff; high λ underfits                    |
-| Dropout Rate          | 0.0, 0.2, 0.5                | Dropout as regularization; reduces co-adaptation of neurons |
-| Batch Size            | 32, 64, full-batch           | Noise vs. convergence speed tradeoff                        |
-| Max Epochs            | 500 (early stopping, pat=10) | Prevents overfitting                                        |
+| Hyperparameter        | Values Tested                | Method   | What It Demonstrates                                        |
+| --------------------- | ---------------------------- | -------- | ----------------------------------------------------------- |
+| Hidden Layer Depth    | [32], [64,32], [128,64,32]   | 5-fold CV | Deeper networks capture more complex interactions           |
+| Hidden Layer Width    | 32, 64, 128, 256 units       | 5-fold CV | Wider layers increase capacity; risk of overfitting         |
+| Learning Rate         | 0.001, 0.01, 0.1             | 5-fold CV | Too high diverges; too low converges slowly                 |
+| L2 Regularization (λ) | 0.0001, 0.001, 0.01, 0.1     | 5-fold CV | Bias-variance tradeoff; high λ underfits                    |
+| Dropout Rate          | 0.0, 0.2, 0.5                | 5-fold CV | Dropout as regularization; reduces co-adaptation of neurons |
+| Class Imbalance Strategy | none, class_weight, SMOTE, undersample | Test set | Recall vs. F1 tradeoff for minority class              |
 
-**Unique Analyses for This Model:**
+**Unique Analyses:**
 
-- Convergence curves: overlay training and validation loss vs. epoch for different learning rates and depths.
-- Depth/width ablation: compare macro F1 across all architecture configurations to find the sweet spot.
-- Dropout sensitivity: plot validation F1 vs. dropout rate to show the regularization effect.
-- Weight norm evolution: track the L2 norm of weights per layer across epochs to visualize how regularization constrains learning.
+- Live training convergence: real-time loss curve updates during training via `epoch_callback` in the dashboard.
+- Neuron health analysis: per-layer detection of dead neurons (ReLU output = 0), negative activations (Leaky ReLU), or saturated neurons (Tanh/Sigmoid near extremes). Color-coded bar chart with green/orange/red thresholds.
+- Automated recommendations: the dashboard diagnoses overfitting (val/train gap), convergence issues (too-fast stopping, max epochs reached, loss barely decreased), and minority-class performance (AUC-PR near baseline), generating actionable suggestions.
+- Confidence histogram and PR curve: post-training visualization of prediction distribution by true class and precision-recall tradeoff.
 
 ## 4. Preprocessing Pipeline
 
 ### 4.1 Data Splitting
 
 - Stratified 80/20 train/test split (matching the original paper's setup).
-- All hyperparameter selection uses 5-fold stratified cross-validation on the training set only.
+- All hyperparameter selection uses 5-fold stratified cross-validation on the training set only (LR and NN sweeps). GBT sweeps evaluate on the held-out test set.
 - Random seed is fixed (seed=42) for reproducibility across all splits.
 
 ### 4.2 Feature Scaling
@@ -228,38 +225,44 @@ A feedforward neural network learns a hierarchical representation of the input b
 
 - For each feature: x_scaled = (x - mean) / std
 - Fit the scaler on the training set only. Apply the same mean/std to the test set. This prevents data leakage.
-- Standardization is the default for all experiments. One ablation compares standardized vs. raw features.
+- Constant-feature safeguard: columns with std=0 have their std replaced with 1 to avoid division by zero.
+- Standardization is the default for all experiments.
 
 ### 4.3 Class Imbalance Handling
 
-Four strategies, compared in a dedicated ablation:
+Four strategies, compared in dedicated ablations for LR and NN:
 
 | Strategy                                | Description                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | None (baseline)                         | Train on the raw imbalanced data.                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| Class-weighted loss                     | Multiply each sample's loss by (N / (n_classes \* n_k)). Applied directly in the loss function for logistic regression, gradient boosting, and neural network.                                                                                                                                                                                                                                                                                     |
+| Class-weighted loss                     | Multiply each sample's loss by (N / (n_classes * n_k)). Applied directly in the loss function for logistic regression and neural network.                                                                                                                                                                                                                                                                                                          |
 | SMOTE (Synthetic Minority Oversampling) | Generate synthetic samples for minority classes by interpolating between existing minority samples and their nearest neighbors. Implemented from scratch: for each minority sample, find its 5 nearest same-class neighbors, pick one at random, create a new sample at a random point along the line between them. Oversample until all classes have the same count as the majority class. Applied to the training set only (never the test set). |
 | Random Undersampling                    | Randomly remove majority class samples until all classes have the same count as the minority class.                                                                                                                                                                                                                                                                                                                                                |
+
+GBT uses a different imbalance pipeline: partial SMOTE (via imblearn, targeting a configurable minority:majority ratio) followed by Tomek link cleaning, applied in the augmented feature space.
 
 ### 4.4 Dimensionality Reduction (PCA)
 
 - Implemented from scratch: center the data, compute the covariance matrix, eigendecompose, project onto the top-k eigenvectors.
 - Threshold: retain enough components to explain 95% of total variance.
 - Fit PCA on the training set, apply the same projection to the test set.
-- PCA is togglable in the dashboard and tested with all models for completeness.
+- Used internally by GBT's feature augmentation pipeline (via scikit-learn's PCA). The shared from-scratch PCA is available but not used in the current experiment sweeps for LR or NN.
 
 ### 4.5 Preprocessing Order
 
 ```
 Raw Data
-  -> Train/Test Split (stratified)
+  -> Drop non-feature columns (Student_ID)
+  -> Separate target (Dropout)
+  -> Impute missing values (median for numeric, mode for categorical)
+  -> Label-encode 7 categorical features
+  -> Convert to numeric matrix
+  -> Train/Test Split (stratified 80/20)
   -> Standardization (fit on train, transform both)
   -> SMOTE / Undersampling (train only, if enabled)
   -> PCA (fit on train, transform both, if enabled)
   -> Feed to model
 ```
-
-Standardization must come before SMOTE (so that interpolation happens in standardized space) and before PCA (so that covariance is computed on standardized features).
 
 ## 5. Evaluation Framework
 
@@ -273,112 +276,74 @@ Standardization must come before SMOTE (so that interpolation happens in standar
 | Overall Accuracy    | Reported for completeness but NOT used for model selection (misleading under imbalance).                           |
 | Confusion Matrix    | 2x2 matrix visualized as a heatmap. Reveals systematic misclassification patterns.                                 |
 
+All metrics are implemented from scratch (no scikit-learn metric dependencies).
+
 ### 5.2 ROC Curves and AUC
 
-- Compute one-vs-rest ROC curves for each class.
-- Plot both curves (Retained vs. Dropped Out, Dropped Out vs. Retained) on the same figure.
-- Report per-class AUC and macro-averaged AUC.
-- Uses predict_proba output, so it evaluates the ranking quality of probability estimates.
+- Compute ROC curve by sweeping all unique predicted probability thresholds.
+- AUC computed via trapezoid rule (`np.trapezoid`).
+- Used to evaluate ranking quality of probability estimates across all imbalance strategies.
 
-### 5.3 Statistical Significance
+### 5.3 Precision-Recall Curves and AUC-PR
 
-- For each pair of models (best configuration each), run a paired t-test across the 5 cross-validation fold scores.
-- Report p-values in a significance matrix.
-- A difference is considered significant at p < 0.05.
-- This prevents over-interpreting small differences (e.g., 0.82 vs. 0.80 F1 may not be significant with only 5 folds).
+- Compute PR curve focused on the dropout (positive) class.
+- More relevant than ROC for imbalanced tasks — shows how well the model retrieves minority-class samples.
+- Class-prevalence baseline plotted for reference.
 
 ### 5.4 Cross-Validation Protocol
 
-- 5-fold stratified cross-validation on the training set for all hyperparameter selection.
-- Report mean and standard deviation of each metric across folds.
-- Final evaluation: retrain on the full training set with the best hyperparameters, evaluate on the held-out test set.
+- 5-fold stratified cross-validation on the training set for hyperparameter selection (LR and NN).
+- Custom stratified fold construction: per-class shuffled indices distributed round-robin across folds.
+- Report mean and standard deviation of macro F1 and accuracy across folds.
+- GBT experiments evaluate on the held-out test set rather than CV (best configuration was identified through prior iterative experimentation).
 
-## 6. Advanced Analyses
+## 6. Dashboard
 
-### 6.1 Bias-Variance Decomposition (Learning Curves)
+### 6.1 Overview
 
-**What:** For each model (at two complexity levels), plot training error and validation error as a function of training set size.
+An interactive Streamlit application (`src/dashboard/app.py`) that allows users to configure, train, and evaluate all three models through a web interface.
 
-**How:**
+### 6.2 Shared Features (All Models)
 
-- Training set fractions: 10%, 20%, 30%, 40%, 50%, 60%, 70%, 80%, 90%, 100%.
-- For each fraction, subsample the training data (maintaining stratification), train the model, and evaluate on both the subsample (training error) and the full validation fold (validation error).
-- Average over 5 cross-validation folds.
-- Plot two curves: training error (should start low and increase) and validation error (should start high and decrease). The gap between them is the variance; the floor they converge to is the bias.
+- Sidebar hyperparameter controls with sliders and select boxes
+- One-click "Train & Evaluate" button
+- Confusion matrix heatmap
+- ROC curve with AUC
+- Per-class precision, recall, F1 display
+- Top-level metric cards: Macro F1, Accuracy, ROC AUC
 
-**Complexity levels to compare:**
+### 6.3 Logistic Regression Panel
 
-- Logistic Regression: lambda=10 (high bias) vs. lambda=0.0001 (high variance)
-- Gradient Boosting: 10 rounds, depth=1 (high bias) vs. 500 rounds, depth=7 (high variance)
-- Neural Network: 1 hidden layer, 32 units, high dropout (high bias) vs. 3 hidden layers, 256 units, no dropout (high variance)
+- Controls: learning rate, lambda, regularization type (L2/L1/Elastic Net), batch size, class weighting toggle
 
-### 6.2 Convergence Analysis (Logistic Regression and Gradient Boosting)
+### 6.4 Gradient Boosted Trees Panel
 
-**What:** Visualize how the training loss evolves during optimization.
+- Controls: learning rate, boosting rounds, max depth, subsample rate, decision threshold
+- Feature importance bar chart (top 15 augmented features)
+- Confidence histogram (predicted probability by true class)
+- Post-training threshold explorer: slider that adjusts the decision threshold and updates dropout precision/recall/F1/accuracy without retraining
 
-**Logistic Regression convergence experiments:**
+### 6.5 Neural Network Panel
 
-- Overlay loss vs. epoch for full-batch, mini-batch (32, 64), and SGD on one plot. Shows the noise/speed tradeoff.
-- For a fixed batch size, overlay loss curves for different regularization strengths. Shows how regularization smooths the loss landscape.
+- **Architecture builder**: configurable number of hidden layers (1–5), per-layer width (4–512) and activation function, weight initialization strategy (Xavier/He)
+- **Optimizer config**: Adam or SGD, learning rate (1e-5 to 1.0), momentum/beta1/beta2, LR decay (none/step/exponential)
+- **Regularization**: L1 lambda, L2 lambda, dropout rate
+- **Training**: batch size, max epochs, patience, class weighting toggle
+- **Live training**: loss curve updates in real time during training via epoch callback
+- **Post-training analysis**:
+  - Training summary: epochs trained, parameter count, final train/val loss, generalization gap percentage
+  - Decision threshold slider with live metric updates
+  - Confidence histogram and PR curve
+  - Neuron health: per-layer dead/saturated neuron detection with color-coded bars (green < 20%, orange < 50%, red > 50%)
+  - Automated recommendations: diagnoses overfitting, convergence issues, loss stagnation, poor minority-class performance, and dead neurons with actionable suggestions
 
-**Gradient Boosting convergence experiments:**
+## 7. Experiment Logging
 
-- Plot training loss and validation loss vs. boosting round for multiple learning rates. Shows how lower learning rates converge more slowly but to a better optimum, and how higher learning rates overfit earlier (validation loss increases while training loss continues to decrease).
+All experiments are automatically logged to `experiments/{model_name}/log.jsonl` in append mode. Each JSON record contains:
 
-### 6.3 Decision Boundary Visualization
+- Timestamp
+- Full parameter dictionary
+- Metric dictionary (per-class and macro)
+- Optional `extra` metadata (sweep type, imbalance strategy, split type)
 
-**What:** Project data onto the two most important features (expected: GPA/CGPA and Attendance_Rate), plot the data points colored by true class, and overlay the decision boundaries for all three models.
-
-**How:**
-
-- Train each model on only two features.
-- Create a dense meshgrid over the 2D feature space.
-- For each point in the meshgrid, predict the class and color the background accordingly.
-- Overlay the actual data points.
-- Display all three models' decision boundaries side by side.
-
-**Expected findings:**
-
-- Logistic Regression: straight-line boundaries.
-- Gradient Boosting: smoother axis-aligned boundaries (more rounds = finer granularity).
-- Neural Network: smooth, curved boundaries that can capture nonlinear separations.
-
-### 6.4 Feature Interaction Analysis
-
-**What:** For the top-3 most important features (as determined by Gradient Boosting feature importance), create pairwise interaction heatmaps showing how feature combinations affect predicted graduation probability.
-
-**How:**
-
-- Take two features (e.g., "Scholarship" and "GPA").
-- Create a 2D grid of values spanning each feature's range.
-- For each grid point, fix those two features and set all others to their training-set medians.
-- Run predict_proba through the best model and plot the graduation probability as a heatmap.
-- Repeat for all three pairwise combinations of the top-3 features.
-
-**Why:** This directly tests whether nonlinear models capture compounding effects that a linear model cannot. If the heatmap shows interaction patterns (e.g., low GPA + no scholarship = high dropout probability, but low GPA + scholarship = moderate dropout probability), that vindicates the project's hypothesis about feature interactions.
-
-### 6.5 Misclassification Analysis
-
-**What:** After training the best overall model, examine the test samples it got wrong and look for systematic patterns.
-
-**How:**
-
-- Pull all misclassified test samples.
-- Group by confusion matrix cell (e.g., "Predicted Retained, Actually Dropped Out" vs. "Predicted Dropped Out, Actually Retained").
-- For each group, compute summary statistics of key features and compare to correctly classified samples.
-- Identify whether certain student profiles are systematically harder (e.g., students with decent GPA but high Stress_Index and low Attendance_Rate who drop out).
-
-**Output:** A narrative explaining WHY the model fails where it does, supported by data tables and plots. This is the qualitative analysis that ties the quantitative results together.
-
-### 6.6 Class Imbalance Sensitivity Study
-
-**What:** Take the best model configuration and retrain it under all four imbalance strategies (none, class-weighted, SMOTE, undersampling). Compare per-class recall.
-
-**Expected findings:**
-
-- Without handling: high recall on Retained (majority), low recall on Dropped Out.
-- Class weighting: improved recall on Dropped Out, slight decrease on Retained.
-- SMOTE: best balance of per-class recalls, slight decrease in precision.
-- Undersampling: improves minority recall but wastes data; highest variance.
-
-**Output:** A single table with 4 rows (strategies) and columns for per-class precision, recall, F1, and macro F1.
+The `extra` field serves as the filter key for separating experiment groups when analyzing results. Delete `log.jsonl` before re-running experiments to avoid duplicates.
