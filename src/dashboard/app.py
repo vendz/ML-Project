@@ -213,6 +213,15 @@ if st.sidebar.button("Train & Evaluate"):
 
         st.subheader("Prediction Confidence")
         fig = plot_confidence_histogram(y_test, y_proba)
+        ax = fig.axes[0]
+        # Remove the default 0.5 line and draw at actual GBT threshold
+        for line in ax.lines:
+            if abs(line.get_xdata()[0] - 0.5) < 0.01:
+                line.remove()
+                break
+        ax.axvline(model.threshold, linestyle="--", color="black",
+                   linewidth=0.9, label=f"Threshold = {model.threshold}")
+        ax.legend(fontsize=8)
         st.pyplot(fig)
         plt.close(fig)
 
