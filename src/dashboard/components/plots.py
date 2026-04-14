@@ -52,6 +52,43 @@ def plot_feature_importance(importances: np.ndarray,
     return fig
 
 
+def plot_lr_coefficients(coefficients: np.ndarray,
+                         feature_names: list[str],
+                         top_n: int = 10) -> plt.Figure:
+    pos_idx = np.where(coefficients > 0)[0]
+    neg_idx = np.where(coefficients < 0)[0]
+
+    pos_idx = pos_idx[np.argsort(coefficients[pos_idx])[-top_n:]]
+    neg_idx = neg_idx[np.argsort(coefficients[neg_idx])[:top_n]]
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, max(4, top_n * 0.45 + 1)))
+
+    if len(pos_idx) > 0:
+        pos_idx = pos_idx[np.argsort(coefficients[pos_idx])]
+        ax1.barh([feature_names[i] for i in pos_idx],
+                 coefficients[pos_idx], color="#e74c3c")
+    else:
+        ax1.text(0.5, 0.5, "No positive coefficients", ha="center", va="center",
+                 transform=ax1.transAxes)
+    ax1.axvline(0.0, color="black", linewidth=0.8)
+    ax1.set_title("Higher Dropout Risk")
+    ax1.set_xlabel("Coefficient")
+
+    if len(neg_idx) > 0:
+        neg_idx = neg_idx[np.argsort(coefficients[neg_idx])]
+        ax2.barh([feature_names[i] for i in neg_idx],
+                 coefficients[neg_idx], color="#3498db")
+    else:
+        ax2.text(0.5, 0.5, "No negative coefficients", ha="center", va="center",
+                 transform=ax2.transAxes)
+    ax2.axvline(0.0, color="black", linewidth=0.8)
+    ax2.set_title("Lower Dropout Risk")
+    ax2.set_xlabel("Coefficient")
+
+    fig.tight_layout()
+    return fig
+
+
 def plot_pr_curve(recalls: np.ndarray, precisions: np.ndarray,
                   auc_pr: float, baseline: float | None = None) -> plt.Figure:
     fig, ax = plt.subplots()
@@ -111,5 +148,4 @@ def plot_confidence_histogram(y_true: np.ndarray,
     ax.legend(fontsize=8)
     fig.tight_layout()
     return fig
-
 

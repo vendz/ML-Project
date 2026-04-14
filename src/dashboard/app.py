@@ -15,6 +15,7 @@ from neural_network.model import NeuralNetwork
 from dashboard.components.plots import (
     plot_confusion_matrix, plot_roc, plot_loss_curve, plot_feature_importance,
     plot_pr_curve, plot_dead_neurons, plot_confidence_histogram,
+    plot_lr_coefficients,
 )
 
 st.set_page_config(page_title="Student Outcome Prediction", layout="wide")
@@ -217,6 +218,14 @@ if st.sidebar.button("Train & Evaluate"):
 
         st.session_state["gbt_results"] = {"y_proba": y_proba}
 
+    if model_name == "Logistic Regression":
+        st.session_state["lr_results"] = {
+            "y_proba": y_proba,
+            "model": model,
+            "feature_names": feature_names,
+            "pr_curve": precision_recall_auc(y_test, y_proba),
+        }
+
     if model_name == "Neural Network":
         st.session_state["nn_results"] = {
             "y_proba":      y_proba,
@@ -226,6 +235,41 @@ if st.sidebar.button("Train & Evaluate"):
             "pr_curve":     precision_recall_auc(y_test, y_proba),
             "layer_acts":   model.get_layer_activations(X_test_s),
         }
+
+if model_name == "Logistic Regression" and "lr_results" in st.session_state:
+    _r = st.session_state["lr_results"]
+    _lr = _r["model"]
+    _yp = _r["y_proba"]
+    _feature_names = _r["feature_names"]
+
+    st.markdown("---")
+    st.subheader("Logistic Regression Analysis")
+
+    st.markdown("#### Decision Threshold Explorer")
+    st.caption("Adjust the threshold to inspect precision, recall, F1, and accuracy without changing the main results above.")
+    _thresh = st.slider("Threshold", 0.01, 0.99, 0.50, step=0.01, key="lr_thresh")
+    _yt = (_yp >= _thresh).astype(int)
+    _rt = classification_report(y_test, _yt)
+    tc1, tc2, tc3, tc4 = st.columns(4)
+    tc1.metric("Precision (dropout)", f"{_rt['dropout']['precision']:.3f}")
+    tc2.metric("Recall (dropout)",    f"{_rt['dropout']['recall']:.3f}")
+    tc3.metric("F1 (dropout)",        f"{_rt['dropout']['f1']:.3f}")
+    tc4.metric("Accuracy",            f"{_rt['accuracy']:.3f}")
+
+    st.markdown("#### PR Curve & Coefficients")
+    ic1, ic2 = st.columns(2)
+    with ic1:
+        _rec, _pre, _auc_pr = _r["pr_curve"]
+        _baseline = float((y_test == 1).mean())
+        st.caption(f"Positive class rate (random baseline): {_baseline:.2f}. Higher AUC-PR means better dropout retrieval.")
+        _fig = plot_pr_curve(_rec, _pre, _auc_pr, _baseline)
+        st.pyplot(_fig)
+        plt.close(_fig)
+    with ic2:
+        st.caption("Coefficients are shown on standardized features, so magnitudes are comparable within the logistic regression model.")
+        _fig = plot_lr_coefficients(_lr.w_, _feature_names, top_n=10)
+        st.pyplot(_fig)
+        plt.close(_fig)
 
 if model_name == "Gradient Boosted Trees" and "gbt_results" in st.session_state:
     _gbt_proba = st.session_state["gbt_results"]["y_proba"]
